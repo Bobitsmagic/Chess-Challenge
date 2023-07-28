@@ -70,7 +70,8 @@ namespace ChessChallenge.Application
             BotStatsA = new BotMatchStats("IBot");
             BotStatsB = new BotMatchStats("IBot");
             botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
-            botTaskWaitHandle = new AutoResetEvent(false);
+            //botMatchStartFens = FileHelper.ReadResourceFile("mate_in_4.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+			botTaskWaitHandle = new AutoResetEvent(false);
 
             StartNewGame(PlayerType.Human, PlayerType.MyBot);
         }
@@ -95,9 +96,12 @@ namespace ChessChallenge.Application
             bool isGameWithHuman = whiteType is PlayerType.Human || blackType is PlayerType.Human;
             int fenIndex = isGameWithHuman ? 0 : botMatchGameIndex / 2;
             board.LoadPosition(botMatchStartFens[fenIndex]);
-
-            // Player Setup
-            PlayerWhite = CreatePlayer(whiteType);
+			//board.LoadPosition("8/r7/3pNb2/3R3p/1p2p3/pPk5/P1P3PP/1K6 w - - 1 0");
+			//board.LoadPosition("5k2/4n3/5p2/8/1B6/8/8/K7 w - - 0 1");
+			//board.LoadPosition("rnb1kbnr/pp1ppppp/2p5/8/1P1P3P/6q1/P1P1PPP1/RNBQKBNR w KQkq - 1 4");
+			
+			// Player Setup
+			PlayerWhite = CreatePlayer(whiteType);
             PlayerBlack = CreatePlayer(blackType);
             PlayerWhite.SubscribeToMoveChosenEventIfHuman(OnMoveChosen);
             PlayerBlack.SubscribeToMoveChosenEventIfHuman(OnMoveChosen);
