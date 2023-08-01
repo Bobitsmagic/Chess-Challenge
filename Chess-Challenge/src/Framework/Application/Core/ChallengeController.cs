@@ -55,6 +55,7 @@ namespace ChessChallenge.Application
         readonly int tokenCount;
         readonly int debugTokenCount;
         readonly StringBuilder pgns;
+        readonly (string, string)[] TestCases;
 
         public ChallengeController()
         {
@@ -72,6 +73,16 @@ namespace ChessChallenge.Application
             BotStatsB = new BotMatchStats("IBot");
             botMatchStartFens = FileHelper.ReadResourceFile("Fens.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
             //botMatchStartFens = FileHelper.ReadResourceFile("mate_in_4.txt").Split('\n').Where(fen => fen.Length > 0).ToArray();
+            TestCases = FileHelper.ReadResourceFile("wac.txt").Split("\n").Select(x =>
+            {
+                string[] split = x.Split("bm");
+                //Console.WriteLine("[" + split[0] + "] [" + split[1].Split(";")[0].Trim() + "]");
+                board.LoadPosition(split[0]);
+
+                //.Split(";")[0].Trim()
+                return (split[0], split[1]);
+            }).ToArray();
+
 			botTaskWaitHandle = new AutoResetEvent(false);
 
             StartNewGame(PlayerType.Human, PlayerType.MyBot);
@@ -95,14 +106,20 @@ namespace ChessChallenge.Application
             // Board Setup
             board = new Board();
             bool isGameWithHuman = whiteType is PlayerType.Human || blackType is PlayerType.Human;
-            int fenIndex = isGameWithHuman ? 0 : botMatchGameIndex / 2;
-            board.LoadPosition(botMatchStartFens[fenIndex]);
-			//board.LoadPosition("8/r7/3pNb2/3R3p/1p2p3/pPk5/P1P3PP/1K6 w - - 1 0");
-			//board.LoadPosition("5k2/4n3/5p2/8/1B6/8/8/K7 w - - 0 1");
-			//board.LoadPosition("rnb1kbnr/pp1ppppp/2p5/8/1P1P3P/6q1/P1P1PPP1/RNBQKBNR w KQkq - 1 4");
-			
-			// Player Setup
-			PlayerWhite = CreatePlayer(whiteType);
+            int fenIndex = isGameWithHuman ? 0 : (botMatchGameIndex) / 2;
+            //board.LoadPosition(botMatchStartFens[fenIndex]);
+            //board.LoadPosition("8/r7/3pNb2/3R3p/1p2p3/pPk5/P1P3PP/1K6 w - - 1 0");
+            //board.LoadPosition("5k2/4n3/5p2/8/1B6/8/8/K7 w - - 0 1");
+            //board.LoadPosition("rnb1kbnr/pp1ppppp/2p5/8/1P1P3P/6q1/P1P1PPP1/RNBQKBNR w KQkq - 1 4");
+            board.LoadPosition(TestCases[fenIndex].Item1);
+
+            //board.LoadPosition("3r2k1/1p1b1pp1/pq5p/8/3NR3/2PQ3P/PP3PP1/6K1 b - - ");
+
+            if(botMatchGameIndex % 2 == 0)            
+                Console.WriteLine("Expected move: " + TestCases[fenIndex].Item2);
+
+            // Player Setup
+            PlayerWhite = CreatePlayer(whiteType);
             PlayerBlack = CreatePlayer(blackType);
             PlayerWhite.SubscribeToMoveChosenEventIfHuman(OnMoveChosen);
             PlayerBlack.SubscribeToMoveChosenEventIfHuman(OnMoveChosen);

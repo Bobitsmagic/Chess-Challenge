@@ -7,7 +7,7 @@ namespace ChessChallenge.Application
         public const string Version = "1.17";
 
         // Game settings
-        public const int GameDurationMilliseconds = 60 * 1000;
+        public const int GameDurationMilliseconds = 10 * 60 * 1000;
         public const float MinMoveDelay = 0;
         public static readonly bool RunBotsOnSeparateThread = true;
 
@@ -18,7 +18,7 @@ namespace ChessChallenge.Application
 
         // Other settings
         public const int MaxTokenCount = 1024;
-        public const LogType MessagesToLog = LogType.All;
+        public const LogType MessagesToLog = LogType.None;
 
         public enum LogType
         {

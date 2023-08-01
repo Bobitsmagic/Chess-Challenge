@@ -8,7 +8,7 @@ namespace ChessChallenge.API
 
 	public sealed class Board
 	{
-		readonly Chess.Board board;
+		public readonly Chess.Board InternalBoard;
 		readonly APIMoveGen moveGen;
 
 		readonly HashSet<ulong> repetitionHistory;
@@ -28,17 +28,17 @@ namespace ChessChallenge.API
         public Board(Chess.Board boardSource)
 		{
 			// Clone board and create game move history
-			board = new Chess.Board();
-			board.LoadPosition(boardSource.StartPositionInfo);
+			InternalBoard = new Chess.Board();
+			InternalBoard.LoadPosition(boardSource.StartPositionInfo);
 			GameMoveHistory = new Move[boardSource.AllGameMoves.Count];
 
 			for (int i = 0; i < boardSource.AllGameMoves.Count; i ++)
 			{
 				Chess.Move move = boardSource.AllGameMoves[i];
-				int movePieceType = PieceHelper.PieceType(board.Square[move.StartSquareIndex]);
-				int capturePieceType = move.IsEnPassant ? PieceHelper.Pawn : PieceHelper.PieceType(board.Square[move.TargetSquareIndex]);
+				int movePieceType = PieceHelper.PieceType(InternalBoard.Square[move.StartSquareIndex]);
+				int capturePieceType = move.IsEnPassant ? PieceHelper.Pawn : PieceHelper.PieceType(InternalBoard.Square[move.TargetSquareIndex]);
 				GameMoveHistory[i] = new Move(move, movePieceType, capturePieceType);
-				board.MakeMove(move, false);
+				InternalBoard.MakeMove(move, false);
 			}
 
 			// Init move gen
@@ -49,21 +49,21 @@ namespace ChessChallenge.API
 
 			// Init piece lists
 			List<PieceList> validPieceLists = new();
-			allPieceLists = new PieceList[board.pieceLists.Length];
-			for (int i = 0; i < board.pieceLists.Length; i++)
+			allPieceLists = new PieceList[InternalBoard.pieceLists.Length];
+			for (int i = 0; i < InternalBoard.pieceLists.Length; i++)
 			{
-				if (board.pieceLists[i] != null)
+				if (InternalBoard.pieceLists[i] != null)
 				{
-					allPieceLists[i] = new PieceList(board.pieceLists[i], this, i);
+					allPieceLists[i] = new PieceList(InternalBoard.pieceLists[i], this, i);
 					validPieceLists.Add(allPieceLists[i]);
 				}
 			}
 			this.validPieceLists = validPieceLists.ToArray();
 
 			// Init rep history
-			repetitionHistory = new HashSet<ulong>(board.RepetitionPositionHistory);
+			repetitionHistory = new HashSet<ulong>(InternalBoard.RepetitionPositionHistory);
 			GameRepetitionHistory = repetitionHistory.ToArray();
-			repetitionHistory.Remove(board.ZobristKey);
+			repetitionHistory.Remove(InternalBoard.ZobristKey);
         }
 
 		/// <summary>
@@ -75,9 +75,9 @@ namespace ChessChallenge.API
 		{
 			if (!move.IsNull)
 			{
-				repetitionHistory.Add(board.ZobristKey);
+				repetitionHistory.Add(InternalBoard.ZobristKey);
 				OnPositionChanged();
-				board.MakeMove(new Chess.Move(move.RawValue), inSearch: true);
+				InternalBoard.MakeMove(new Chess.Move(move.RawValue), inSearch: true);
 			}
 		}
 
@@ -88,9 +88,9 @@ namespace ChessChallenge.API
 		{
 			if (!move.IsNull)
 			{
-				board.UndoMove(new Chess.Move(move.RawValue), inSearch: true);
+				InternalBoard.UndoMove(new Chess.Move(move.RawValue), inSearch: true);
                 OnPositionChanged();
-                repetitionHistory.Remove(board.ZobristKey);
+                repetitionHistory.Remove(InternalBoard.ZobristKey);
 			}
 		}
 
@@ -106,7 +106,7 @@ namespace ChessChallenge.API
 			{
 				return false;
 			}
-			board.MakeNullMove();
+			InternalBoard.MakeNullMove();
             OnPositionChanged();
             return true;
 		}
@@ -121,7 +121,7 @@ namespace ChessChallenge.API
         /// </summary>
         public void ForceSkipTurn()
         {
-            board.MakeNullMove();
+            InternalBoard.MakeNullMove();
             OnPositionChanged();
         }
 
@@ -130,7 +130,7 @@ namespace ChessChallenge.API
         /// </summary>
         public void UndoSkipTurn()
 		{
-			board.UnmakeNullMove();
+			InternalBoard.UnmakeNullMove();
             OnPositionChanged();
         }
 
@@ -148,7 +148,7 @@ namespace ChessChallenge.API
 			if (!hasCachedMoves)
 			{
                 Span<Move> moveSpan = movesDest.AsSpan();
-                moveGen.GenerateMoves(ref moveSpan, board, includeQuietMoves: true);
+                moveGen.GenerateMoves(ref moveSpan, InternalBoard, includeQuietMoves: true);
                 cachedLegalMoves = moveSpan.ToArray();
                 hasCachedMoves = true;
 			}
@@ -165,7 +165,7 @@ namespace ChessChallenge.API
         public void GetLegalMovesNonAlloc(ref Span<Move> moveList, bool capturesOnly = false)
 		{
 			bool includeQuietMoves = !capturesOnly;
-			moveGen.GenerateMoves(ref moveList, board, includeQuietMoves);
+			moveGen.GenerateMoves(ref moveList, InternalBoard, includeQuietMoves);
 		}
 
 
@@ -174,7 +174,7 @@ namespace ChessChallenge.API
 			if (!hasCachedCaptureMoves)
 			{
                 Span<Move> moveSpan = movesDest.AsSpan();
-                moveGen.GenerateMoves(ref moveSpan, board, includeQuietMoves: false);
+                moveGen.GenerateMoves(ref moveSpan, InternalBoard, includeQuietMoves: false);
                 cachedLegalCaptureMoves = moveSpan.ToArray();
                 hasCachedCaptureMoves = true;
 			}
@@ -184,7 +184,7 @@ namespace ChessChallenge.API
 		/// <summary>
 		/// Test if the player to move is in check in the current position.
 		/// </summary>
-		public bool IsInCheck() => board.IsInCheck();
+		public bool IsInCheck() => InternalBoard.IsInCheck();
 
 		/// <summary>
 		/// Test if the current position is checkmate
@@ -201,7 +201,7 @@ namespace ChessChallenge.API
 			return IsFiftyMoveDraw() || IsInsufficientMaterial() || IsInStalemate() || IsRepeatedPosition();
 
 			bool IsInStalemate() => !IsInCheck() && GetLegalMoves().Length == 0;
-			bool IsFiftyMoveDraw() => board.currentGameState.fiftyMoveCounter >= 100;
+			bool IsFiftyMoveDraw() => InternalBoard.currentGameState.fiftyMoveCounter >= 100;
 		}
 
 		/// <summary>
@@ -209,27 +209,27 @@ namespace ChessChallenge.API
 		/// This includes both positions in the actual game, and positions reached by
 		/// making moves while the bot is thinking.
 		/// </summary>
-		public bool IsRepeatedPosition() => repetitionHistory.Contains(board.ZobristKey);
+		public bool IsRepeatedPosition() => repetitionHistory.Contains(InternalBoard.ZobristKey);
 
 		/// <summary>
 		/// Test if there are sufficient pieces remaining on the board to potentially deliver checkmate.
 		/// If not, the game is automatically a draw.
 		/// </summary>
-		public bool IsInsufficientMaterial() => Arbiter.InsufficentMaterial(board);
+		public bool IsInsufficientMaterial() => Arbiter.InsufficentMaterial(InternalBoard);
 
         /// <summary>
         /// Does the given player still have the right to castle kingside?
         /// Note that having the right to castle doesn't necessarily mean castling is legal right now
         /// (for example, a piece might be in the way, or player might be in check, etc).
         /// </summary>
-        public bool HasKingsideCastleRight(bool white) => board.currentGameState.HasKingsideCastleRight(white);
+        public bool HasKingsideCastleRight(bool white) => InternalBoard.currentGameState.HasKingsideCastleRight(white);
 
 		/// <summary>
 		/// Does the given player still have the right to castle queenside?
 		/// Note that having the right to castle doesn't necessarily mean castling is legal right now
 		/// (for example, a piece might be in the way, or player might be in check, etc).
 		/// </summary>
-		public bool HasQueensideCastleRight(bool white) => board.currentGameState.HasQueensideCastleRight(white);
+		public bool HasQueensideCastleRight(bool white) => InternalBoard.currentGameState.HasQueensideCastleRight(white);
 
 		/// <summary>
 		/// Gets the square that the king (of the given colour) is currently on.
@@ -237,7 +237,7 @@ namespace ChessChallenge.API
 		public Square GetKingSquare(bool white)
 		{
 			int colIndex = white ? Chess.Board.WhiteIndex : Chess.Board.BlackIndex;
-			return new Square(board.KingSquare[colIndex]);
+			return new Square(InternalBoard.KingSquare[colIndex]);
 		}
 
         /// <summary>
@@ -245,7 +245,7 @@ namespace ChessChallenge.API
         /// </summary>
         public Piece GetPiece(Square square)
         {
-            int p = board.Square[square.Index];
+            int p = InternalBoard.Square[square.Index];
             bool white = PieceHelper.IsWhite(p);
             return new Piece((PieceType)PieceHelper.PieceType(p), white, square);
         }
@@ -273,14 +273,14 @@ namespace ChessChallenge.API
 		/// </summary>
 		public bool SquareIsAttackedByOpponent(Square square)
 		{
-			return BitboardHelper.SquareIsSet(moveGen.GetOpponentAttackMap(board), square);
+			return BitboardHelper.SquareIsSet(moveGen.GetOpponentAttackMap(InternalBoard), square);
 		}
 
 
 		/// <summary>
 		/// FEN representation of the current position
 		/// </summary>
-		public string GetFenString() => FenUtility.CurrentFen(board);
+		public string GetFenString() => FenUtility.CurrentFen(InternalBoard);
 
         /// <summary>
         /// 64-bit number where each bit that is set to 1 represents a
@@ -288,41 +288,41 @@ namespace ChessChallenge.API
         /// </summary>
         public ulong GetPieceBitboard(PieceType pieceType, bool white)
 		{
-			return board.pieceBitboards[PieceHelper.MakePiece((int)pieceType, white)];
+			return InternalBoard.pieceBitboards[PieceHelper.MakePiece((int)pieceType, white)];
 		}
 		/// <summary>
 		/// 64-bit number where each bit that is set to 1 represents a square that contains any type of white piece.
 		/// </summary>
-		public ulong WhitePiecesBitboard => board.colourBitboards[Chess.Board.WhiteIndex];
+		public ulong WhitePiecesBitboard => InternalBoard.colourBitboards[Chess.Board.WhiteIndex];
 		/// <summary>
 		/// 64-bit number where each bit that is set to 1 represents a square that contains any type of black piece.
 		/// </summary>
-		public ulong BlackPiecesBitboard => board.colourBitboards[Chess.Board.BlackIndex];
+		public ulong BlackPiecesBitboard => InternalBoard.colourBitboards[Chess.Board.BlackIndex];
 
 		/// <summary>
 		/// 64-bit number where each bit that is set to 1 represents a
 		/// square that contains a piece of any type or colour.
 		/// </summary>
-		public ulong AllPiecesBitboard => board.allPiecesBitboard;
+		public ulong AllPiecesBitboard => InternalBoard.allPiecesBitboard;
 
 
-		public bool IsWhiteToMove => board.IsWhiteToMove;
+		public bool IsWhiteToMove => InternalBoard.IsWhiteToMove;
 
 		/// <summary>
 		/// Number of ply (a single move by either white or black) played so far
 		/// </summary>
-		public int PlyCount => board.plyCount;
+		public int PlyCount => InternalBoard.plyCount;
 
         /// <summary>
         ///  Number of ply (a single move by either white or black) since the last pawn move or capture.
 		///  If this value reaches a hundred (meaning 50 full moves without a pawn move or capture), the game is drawn.
         /// </summary>
-        public int FiftyMoveCounter => board.currentGameState.fiftyMoveCounter;
+        public int FiftyMoveCounter => InternalBoard.currentGameState.fiftyMoveCounter;
 
 		/// <summary>
 		/// 64-bit hash of the current position
 		/// </summary>
-		public ulong ZobristKey => board.ZobristKey;
+		public ulong ZobristKey => InternalBoard.ZobristKey;
 
 		/// <summary>
 		/// Zobrist keys for all the positions played in the game so far. This is reset whenever a
@@ -335,7 +335,7 @@ namespace ChessChallenge.API
         /// <summary>
         /// FEN representation of the game's starting position.
         /// </summary>
-        public string GameStartFenString => board.GameStartFen;
+        public string GameStartFenString => InternalBoard.GameStartFen;
 
 		/// <summary>
 		/// All the moves played in the game so far.
@@ -361,5 +361,33 @@ namespace ChessChallenge.API
             hasCachedCaptureMoves = false;
         }
 
+		public void Print()
+		{
+			string white = " PNBRQK";
+			string black = " pnbrqk";
+
+            Console.WriteLine("   " + new string('_', 16));
+            for (int y = 7; y >= 0; y--)
+			{
+				Console.Write((y + 1).ToString() + " |");
+				for(int x = 0; x < 8; x++)
+				{
+					Console.BackgroundColor = (x + y) % 2 == 1 ? ConsoleColor.Gray : ConsoleColor.DarkGray;
+                    
+					Piece p = GetPiece(new Square(x, y));
+					
+					int index = (int)p.PieceType;
+					Console.ForegroundColor = p.IsWhite ? ConsoleColor.White: ConsoleColor.Black;
+					Console.Write(p.IsWhite ? white[index] : black[index]);
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write(" ");
+
+					Console.BackgroundColor = ConsoleColor.Black;
+				}
+                Console.WriteLine("|");
+            }
+            Console.WriteLine("   " + new string('_', 16));
+			Console.WriteLine("   " + "a b c d e f g h");
+        }
     }
 }

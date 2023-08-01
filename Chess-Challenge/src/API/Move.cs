@@ -53,6 +53,11 @@ namespace ChessChallenge.API
 			pieceTypeData = (ushort)(movePieceType | (capturePieceType << 3));
 		}
 
+		public string GetSANString(Board b)
+		{
+			return MoveUtility.GetMoveNameSAN(move, b.InternalBoard);
+		}
+
 		public override string ToString()
 		{
 			string moveName = MoveUtility.GetMoveNameUCI(move);

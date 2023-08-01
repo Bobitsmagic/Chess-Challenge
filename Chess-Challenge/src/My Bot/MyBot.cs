@@ -1,9 +1,8 @@
 ﻿using ChessChallenge.API;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.ExceptionServices;
+using static System.Formats.Asn1.AsnWriter;
 using static System.Math;
 
 public class MyBot : IChessBot
@@ -26,7 +25,7 @@ public class MyBot : IChessBot
 	ulong PAWN_CENTER_ATTACK_BLACK = 39737037422592;
 
 	//None, Pawn, Knight, Bishop, Rook, Queen, King
-	int[] PIECE_WEIGHT = { 0, PAWN, 280, 320, 450, 910, CHECK_MATE_EVAL };
+	int[] PIECE_WEIGHT = { 0, PAWN, 280, 320, 460, 910, CHECK_MATE_EVAL };
 	int[] PAWN_PUSH_BONUS = { 0, 1, 3, 10, 20, 30, 50, 0};
 
 	class Comp : IComparer<(int, Move[])>
@@ -40,6 +39,7 @@ public class MyBot : IChessBot
 	public Move Think(Board board, Timer timer)
 	{
 		//Dictionary<ulong, int> evalTable = new Dictionary<ulong, int>();
+		board.Print();
 
 		var pair = (0, Move.NullMove);
 		long posCounter = 0;
@@ -51,25 +51,29 @@ public class MyBot : IChessBot
 		int maxDepth = 1;
 		while (posCounter < 1_000_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
 		{
-			pair = AlphaBetaNega(-MAX_VAL, MAX_VAL, maxDepth, SLACK, 1, firstMoves);
+			pair = AlphaBetaNega(-MAX_VAL, MAX_VAL, maxDepth, 1, firstMoves);
 			maxDepth++;
 
 			pair.Item1 *= board.IsWhiteToMove ? 1 : -1;
 
+			Console.WriteLine("BBV3 Depth: " + (maxDepth - 1) + " Positions: " + posCounter.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("000 000") + " Best move: " + pair.Item2.GetSANString(board) + " Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
         }
 
-		Console.WriteLine("BBV3 Depth: " + (maxDepth - 1) + " Positions: " + posCounter.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("000 000") + " " + pair.Item2 + " Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000"));
+
 		return pair.Item2;
 
-		(int, Move) AlphaBetaNega(int alpha, int beta, int depthLeft, int slack, int localEval, Move[] moves)
+
+		
+		(int, Move) AlphaBetaNega(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
 		{
-			if (moves.Length == 0 || localEval == 0)
+			//Finished result || Patt
+            if (moves.Length == 0 || localEval == 0)
 				return (localEval, Move.NullMove);
 
 			if (depthLeft == 0)
-				return (localEval, Move.NullMove);
+				return (Quiscence(alpha, beta, SLACK, localEval, moves), Move.NullMove); 
 
-			(int, Move[])[] evals = new (int, Move[])[moves.Length];
+            (int, Move[])[] evals = new (int, Move[])[moves.Length];
 
 			for(int i = 0; i < moves.Length; i++)
 			{
@@ -87,20 +91,18 @@ public class MyBot : IChessBot
 			for (int i = 0; i < moves.Length; i++) //Reverse so it starts with best move
 			{
 				var m = moves[i];
-				board.MakeMove(m);
-
-				int extraDepth = 1;
-				if (depthLeft == 1 && slack > 0 && (board.IsInCheck() || 
-					(PIECE_WEIGHT[(int)m.MovePieceType] <= PIECE_WEIGHT[(int)m.CapturePieceType])))
-					extraDepth--;
+                //Console.WriteLine(new string('\t', maxDepth - depthLeft) + "N: " + m.GetSANString(board) + " [" + evals[i].Item2.Length + "] Eval: " + (evals[i].Item1 * (board.IsWhiteToMove ? -1 : 1)));
+                board.MakeMove(m);
 				
-				var (score, line) = AlphaBetaNega(-beta, -alpha, depthLeft - extraDepth, slack - 1 + extraDepth, evals[i].Item1, evals[i].Item2);
+				var (score, line) = AlphaBetaNega(-beta, -alpha, depthLeft - 1, evals[i].Item1, evals[i].Item2);
 				score = -score;
-
-				board.UndoMove(m);
+                board.UndoMove(m);
 
 				if (score >= beta)
-					return (beta, line);   //  fail hard beta-cutoff
+				{
+                    //Console.WriteLine("Alpha beta break");
+                    return (beta, line);   //  fail hard beta-cutoff
+				}
 
 				if (score > alpha)
 				{
@@ -111,12 +113,59 @@ public class MyBot : IChessBot
 
 			return (alpha, bestMove);
 
-
 			int CaptureScore(Move m) => m.IsCapture ? 
 				PIECE_WEIGHT[(int)m.CapturePieceType] - PIECE_WEIGHT[(int)m.MovePieceType] : 0;
-			
-			//Returns positive value if next moving player is better
-			(int, Move[]) StaticEval(Move lastMove)
+
+
+            //TODO Static Exchange Evaluation
+            int Quiscence(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
+			{
+                if (localEval >= beta)
+                    return beta;
+
+                if (alpha < localEval)
+                    alpha = localEval;
+
+                //Finished result || Patt
+                if (moves.Length == 0 || localEval == 0 || depthLeft == 0)
+                    return localEval;
+
+                (int, Move[])[] evals = new (int, Move[])[moves.Length];
+
+                //Console.WriteLine("Legal moves: " + string.Join(" ", moves.Select(x => x.GetSANString(board))));
+
+                for (int i = 0; i < moves.Length; i++)
+                {
+                    board.MakeMove(moves[i]);
+                    evals[i] = StaticEval(moves[i]);
+                    board.UndoMove(moves[i]);
+                }
+
+                Array.Sort(evals, moves, comp);
+
+				for (int i = 0; i < moves.Length; i++)
+				{
+					var m = moves[i];
+					if (!m.IsCapture) continue;
+
+                   // Console.WriteLine(new string('\t', SLACK - depthLeft + maxDepth) + "Q: " + m.GetSANString(board) + " [" + evals[i].Item2.Where(x => x.IsCapture).Count() + "] Eval: " + (evals[i].Item1 * (board.IsWhiteToMove ? -1 : 1)));
+                    board.MakeMove(m);
+
+                    //Console.WriteLine("Legal moves: " + string.Join(" ", evals[i].Item2.Select(x => x.GetSANString(board))));
+                    var score = -Quiscence(-beta, -alpha, depthLeft - 1, evals[i].Item1, evals[i].Item2);
+                    board.UndoMove(m);
+
+                    if (score >= beta)
+						return beta;   //  fail hard beta-cutoff
+                    
+                    if (score > alpha)
+						alpha = score; // alpha acts like max in MiniMax
+                }
+
+				return alpha;
+            }
+            //Returns positive value if next moving player is better
+            (int, Move[]) StaticEval(Move lastMove)
 			{
 				posCounter++;
 
@@ -127,7 +176,7 @@ public class MyBot : IChessBot
 					return (0, legalMoves);
 
 				if (board.IsInCheckmate())
-					return (-(CHECK_MATE_EVAL - (maxDepth - depthLeft) - (SLACK - slack)), legalMoves);
+					return (-(CHECK_MATE_EVAL - (maxDepth - depthLeft)), legalMoves);
 
 				//if (evalTable.TryGetValue(board.ZobristKey, out var val))
 				//	return (val, legalMoves);
