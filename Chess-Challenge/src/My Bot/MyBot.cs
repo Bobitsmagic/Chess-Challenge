@@ -38,8 +38,8 @@ public class MyBot : IChessBot
 	//BBV3 Depth: 7 Positions: 016 111 022 Time: 5305 Move: 'd5d1' Eval: 999,940
 	public Move Think(Board board, Timer timer)
 	{
-		//Dictionary<ulong, int> evalTable = new Dictionary<ulong, int>();
-		board.Print();
+		Dictionary<ulong, int> evalTable = new Dictionary<ulong, int>();
+		//board.Print();
 
 		var pair = (0, Move.NullMove);
 		long posCounter = 0;
@@ -49,21 +49,20 @@ public class MyBot : IChessBot
 			return firstMoves[0];
 		
 		int maxDepth = 1;
-		while (posCounter < 1_000_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
+		while (posCounter < 100_000_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
 		{
 			pair = AlphaBetaNega(-MAX_VAL, MAX_VAL, maxDepth, 1, firstMoves);
 			maxDepth++;
 
 			pair.Item1 *= board.IsWhiteToMove ? 1 : -1;
+			Console.WriteLine("BBV3 Depth: " + (maxDepth - 1) + " Positions: " + posCounter.ToString("000 000 000") + " Distinct: " + evalTable.Count.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn.ToString("000 000") + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("000 000") + " Best move: " + pair.Item2.GetSANString(board) + " Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
 
-			Console.WriteLine("BBV3 Depth: " + (maxDepth - 1) + " Positions: " + posCounter.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("000 000") + " Best move: " + pair.Item2.GetSANString(board) + " Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
         }
 
+        Console.WriteLine("Move done: " + pair.Item2.GetSANString(board));
 
-		return pair.Item2;
+        return pair.Item2;
 
-
-		
 		(int, Move) AlphaBetaNega(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
 		{
 			//Finished result || Patt
@@ -178,9 +177,9 @@ public class MyBot : IChessBot
 				if (board.IsInCheckmate())
 					return (-(CHECK_MATE_EVAL - (maxDepth - depthLeft)), legalMoves);
 
-				//if (evalTable.TryGetValue(board.ZobristKey, out var val))
-				//	return (val, legalMoves);
-				
+				if (evalTable.TryGetValue(board.ZobristKey, out var val))
+					return (val, legalMoves);
+
 				//Whites perspective
 				int sum = 0;
 
@@ -267,7 +266,7 @@ public class MyBot : IChessBot
 				if (sum == 0)
 					sum = 1;
 
-				//evalTable.Add(board.ZobristKey, sum);
+				evalTable.Add(board.ZobristKey, sum);
 
 				return (sum, legalMoves);
 			}
