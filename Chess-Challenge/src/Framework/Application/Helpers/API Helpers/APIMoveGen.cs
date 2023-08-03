@@ -154,6 +154,8 @@ namespace ChessChallenge.Application.APIHelpers
         void GenerateKingMoves(Span<API.Move> moves)
         {
             ulong legalMask = ~(opponentAttackMap | friendlyPieces);
+
+
             ulong kingMoves = Bits.KingMoves[friendlyKingSquare] & legalMask & moveTypeMask;
             while (kingMoves != 0)
             {

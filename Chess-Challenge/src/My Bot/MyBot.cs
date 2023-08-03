@@ -15,7 +15,7 @@ public class MyBot : IChessBot
 	int MOVE_COUNT_WEIGHT = 2;
 	int CENTER_PAWN_SCORE = 3;
 	int CENTER_WEIGHT = 8;
-	int CASTLE_VALUE = 10;
+	int CASTLE_VALUE = 50;
 
 	//Bitboards
 	ulong CenterSquares = 258704670720;
@@ -41,7 +41,7 @@ public class MyBot : IChessBot
 		Dictionary<ulong, int> evalTable = new Dictionary<ulong, int>();
 		//board.Print();
 
-		var pair = (0, Move.NullMove);
+		var pair = (0, new List<Move>());
 		long posCounter = 0;
 		var firstMoves = board.GetLegalMoves();
 
@@ -49,28 +49,50 @@ public class MyBot : IChessBot
 			return firstMoves[0];
 		
 		int maxDepth = 1;
-		while (posCounter < 100_000_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
+		while (posCounter < 10_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
 		{
 			pair = AlphaBetaNega(-MAX_VAL, MAX_VAL, maxDepth, 1, firstMoves);
 			maxDepth++;
 
 			pair.Item1 *= board.IsWhiteToMove ? 1 : -1;
-			Console.WriteLine("BBV3 Depth: " + (maxDepth - 1) + " Positions: " + posCounter.ToString("000 000 000") + " Distinct: " + evalTable.Count.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn.ToString("000 000") + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("000 000") + " Best move: " + pair.Item2.GetSANString(board) + " Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
+
 
         }
+		
+		Console.Write("BBV3 Depth: " + (maxDepth - 1).ToString("00") + " Positions: " + posCounter.ToString("000 000 000") + " Distinct: " + evalTable.Count.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn.ToString("000 000") + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("0 000 000") + " Best Line: "); //DEBUG
+		PrintLine();
+        Console.WriteLine(" Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
 
-        Console.WriteLine("Move done: " + pair.Item2.GetSANString(board));
+		void PrintLine()
+		{
+			for(int i = 0; i < pair.Item2.Count; i++)
+			{
+				Console.Write(pair.Item2[i].GetSANString(board) + " ");
 
-        return pair.Item2;
+				board.MakeMove(pair.Item2[i]);
+			}
 
-		(int, Move) AlphaBetaNega(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
+			for (int i = pair.Item2.Count - 1; i >= 0; i--)
+			{
+				board.UndoMove(pair.Item2[i]);
+			}
+		}
+
+        //Console.WriteLine("Move done: " + pair.Item2.GetSANString(board));
+
+        return pair.Item2[0];
+
+		(int, List<Move>) AlphaBetaNega(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
 		{
 			//Finished result || Patt
             if (moves.Length == 0 || localEval == 0)
-				return (localEval, Move.NullMove);
+			{
+				//board.Print();
+				return (localEval, new List<Move>());
+			}
 
 			if (depthLeft == 0)
-				return (Quiscence(alpha, beta, SLACK, localEval, moves), Move.NullMove); 
+				return (Quiscence(alpha, beta, SLACK, localEval, moves), new List<Move>()); 
 
             (int, Move[])[] evals = new (int, Move[])[moves.Length];
 
@@ -86,14 +108,19 @@ public class MyBot : IChessBot
 			//Smallest value first
 			Array.Sort(evals, moves, comp);
 
-			Move bestMove = Move.NullMove;
+			List<Move> bestLine = new List<Move>();
 			for (int i = 0; i < moves.Length; i++) //Reverse so it starts with best move
 			{
 				var m = moves[i];
                 //Console.WriteLine(new string('\t', maxDepth - depthLeft) + "N: " + m.GetSANString(board) + " [" + evals[i].Item2.Length + "] Eval: " + (evals[i].Item1 * (board.IsWhiteToMove ? -1 : 1)));
                 board.MakeMove(m);
-				
-				var (score, line) = AlphaBetaNega(-beta, -alpha, depthLeft - 1, evals[i].Item1, evals[i].Item2);
+
+				int kek = 1;
+
+				if (m.IsCapture || board.IsInCheck() || evals[i].Item2.Length == 1)
+					kek = 0;
+
+				var (score, line) = AlphaBetaNega(-beta, -alpha, depthLeft - kek, evals[i].Item1, evals[i].Item2);
 				score = -score;
                 board.UndoMove(m);
 
@@ -106,11 +133,14 @@ public class MyBot : IChessBot
 				if (score > alpha)
 				{
 					alpha = score; // alpha acts like max in MiniMax
-					bestMove = m;
+
+					bestLine.Clear();
+					bestLine.Add(m);
+					bestLine.AddRange(line);
 				}
 			}
 
-			return (alpha, bestMove);
+			return (alpha, bestLine);
 
 			int CaptureScore(Move m) => m.IsCapture ? 
 				PIECE_WEIGHT[(int)m.CapturePieceType] - PIECE_WEIGHT[(int)m.MovePieceType] : 0;
@@ -168,6 +198,8 @@ public class MyBot : IChessBot
 			{
 				posCounter++;
 
+				//board.Print();
+
 				var legalMoves = board.GetLegalMoves();
 				var factor = board.IsWhiteToMove ? 1 : -1;
 
@@ -215,7 +247,7 @@ public class MyBot : IChessBot
 					}
 
 					var bestTempoOpponent = 0;
-					foreach(Move m in opponentMoves)
+					foreach (Move m in opponentMoves)
 					{
 						bestTempoOpponent = Max(bestTempoOpponent, CaptureScore(m));
 						centerScore -= CenterScore(m);
@@ -231,7 +263,7 @@ public class MyBot : IChessBot
 							(m.MovePieceType == PieceType.Knight || m.MovePieceType == PieceType.Bishop) ? 1 : 0;
 					}
 
-					ulong whitePawns  = board.GetPieceBitboard(PieceType.Pawn, true);
+					ulong whitePawns = board.GetPieceBitboard(PieceType.Pawn, true);
 					ulong blackPawns = board.GetPieceBitboard(PieceType.Pawn, false);
 
 					centerScore += CENTER_PAWN_SCORE * (
@@ -245,7 +277,7 @@ public class MyBot : IChessBot
 				else //Is in check
 					sum -= IN_CHECK_PENALITY * factor;
 
-				
+
 				sum += CastleValue(true) - CastleValue(true);
 				
 				int CastleValue(bool white) => 

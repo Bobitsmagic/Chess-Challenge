@@ -13,9 +13,9 @@ namespace ChessChallenge.Example
 	{
 		public Move Think(Board board, Timer timer)
 		{
-			return Move.NullMove;
-			//Move m = SF(board, timer);
-			Move m = BarschOld(board, timer);
+			//return Move.NullMove;
+			Move m = SF(board, timer);
+			//Move m = BarschOld(board, timer);
 
 			return m;
 		}
