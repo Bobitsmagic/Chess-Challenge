@@ -13,7 +13,7 @@ namespace ChessChallenge.Example
 	{
 		public Move Think(Board board, Timer timer)
 		{
-			//return Move.NullMove;
+			return Move.NullMove;
 			Move m = SF(board, timer);
 			//Move m = BarschOld(board, timer);
 
@@ -68,231 +68,298 @@ namespace ChessChallenge.Example
 
 		}
 
-		const int PAWN = 124;
-		const int CHECKMATE_SCORE = PAWN * 1000;
-		const int MIN_CHECKMATE_SCORE = CHECKMATE_SCORE * 7 / 8;
-		const long MIN_BOARDS_SEARCHED = 1 << 14;
-		const long MIN_BOARDS_PANIC = 1 << 10;
-		const int START_SLACK = 3;
-		int[] PIECE_VALUES = { PAWN, 781, 825, 1276, 2538, CHECKMATE_SCORE };
+		const int PAWN = 100;
+		const int CHECK_MATE_EVAL = PAWN * 1000;
+		int MAX_VAL = CHECK_MATE_EVAL * 100;
+		int SLACK = 5;
+		int IN_CHECK_PENALITY = 20;
+		int MOVE_COUNT_WEIGHT = 2;
+		int CENTER_PAWN_SCORE = 3;
+		int CENTER_WEIGHT = 8;
+		int CASTLE_VALUE = 50;
 
-		int[] PawnBonusMidGame = new int[64];
-		int[] PieceBonusMidGame = new int[160];
-		Random rnd = new Random();
+		//Bitboards
+		ulong CenterSquares = 258704670720;
+		ulong DOUBLE_PAWN_CENTER_ATTACK_WHITE = 404226048;
+		ulong DOUBLE_PAWN_CENTER_ATTACK_BLACK = 26491358281728;
+		ulong PAWN_CENTER_ATTACK_WHITE = 606339072;
+		ulong PAWN_CENTER_ATTACK_BLACK = 39737037422592;
 
-		//BBV2 Depth: 5 Positions: 000 432 693 Time: 1694 Line: [Move: 'h6g7' Move: 'g8g7' Move: 'h1h7' Move: 'g7h7' Move: 'f3f6' Move: 'h7g7' Move: 'a1h1' Eval: 994,000
-		public EvilBot()
+		//None, Pawn, Knight, Bishop, Rook, Queen, King
+		int[] PIECE_WEIGHT = { 0, PAWN, 280, 320, 460, 910, CHECK_MATE_EVAL };
+		int[] PAWN_PUSH_BONUS = { 0, 1, 3, 10, 20, 30, 50, 0 };
+
+		class Comp : IComparer<(int, Move[])>
 		{
-			ulong[] mg = { 5348067507372035, 18445336728892014608, 4222176189349879, 18440551645698195488, 5629529597542396, 18444492291076849704, 562894118846477, 1688798320525323, 6473898693754885, 18444773688742772728, 18443366361104646137, 18444492321139458053 };
-
-			for (int i = 8; i < 56; i++)
-			{
-				PawnBonusMidGame[i] = GetVal(i - 8) + PAWN;
-			}
-
-			//Console.WriteLine(string.Join(" ", PawnBonusMidGame));
-
-			mg = new ulong[] { 18426477561847807825, 18442803312363831219, 3377729784250307, 13792445658103773, 14355412791721950, 14918422875275255, 10414595611426749, 18439706963063209783, 18440551594156883915, 1125981511811057, 5066528107397113, 10977631466684411, 8725818769276916, 3096229039243248, 25768951791, 18440551564092506064, 18445618117966888929, 1970294771417067, 1125899906187239, 18445336685940834291, 1125887021023205, 3377729785233386, 5066618301120510, 2814749765926895, 1407357703356419, 3377734080659453, 1970380672008189, 2251838468718596, 1407426424078336, 2251825584209916, 2251842763816955, 18446181132345999358, 55733209346277647, 50385025873412374, 33777723071660227, 27585140435583140, 19703699353043098, 8726072179884155, 9288953412190296, 18446462792012202043 };
-
-			for (int i = 0; i < 160; i++)
-			{
-				PieceBonusMidGame[i] = GetVal(i) + PIECE_VALUES[1 + (i / 32)];
-			}
-
-			//Console.WriteLine(string.Join(" ", PieceBonusMidGame));
-
-			short GetVal(int index)
-			{
-				return (short)((mg[index / 4] >> (16 * (index % 4))) & ushort.MaxValue);
-			}
+			public int Compare((int, Move[]) x, (int, Move[]) y) => x.Item1.CompareTo(y.Item1);
 		}
 
-		//BBV2 Depth: 5 Positions: 000 996 612 Time: 3139 Line: [Move: 'h6g7' Move: 'g8g7' Move: 'h1h7' Move: 'g7h7' Move: 'f3f6' Move: 'h7g7' Move: 'a1h1' Eval: 994,000
+		static Comp comp = new();
+
+		//BBV3 Depth: 7 Positions: 016 111 022 Time: 5305 Move: 'd5d1' Eval: 999,940
 		public Move BarschOld(Board board, Timer timer)
 		{
-
 			Dictionary<ulong, int> evalTable = new Dictionary<ulong, int>();
+			//board.Print();
+
+			var pair = (0, new List<Move>());
 			long posCounter = 0;
-			var pair = (0, new List<Move>() { board.GetLegalMoves()[0] });
-			int maxdepth = 0;
+			var firstMoves = board.GetLegalMoves();
 
-			int bestVal = board.IsWhiteToMove ? int.MinValue : int.MaxValue;
+			if (firstMoves.Length == 1)
+				return firstMoves[0];
 
-			if (board.GetLegalMoves().Length == 1)
-				return board.GetLegalMoves()[0];
-
-			var answer = Move.NullMove;
-
-			//List<Move> bestLine = new List<Move>();
-			//Stack<Move> stack = new Stack<Move>();
-
-			while (posCounter < MIN_BOARDS_SEARCHED && !(Abs(pair.Item1) > MIN_CHECKMATE_SCORE) && !(timer.MillisecondsRemaining < 3000 && posCounter > MIN_BOARDS_PANIC))
+			int maxDepth = 1;
+			while (posCounter < 10_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
 			{
-				pair = DFS(0, int.MinValue, int.MaxValue, 0, START_SLACK);
+				pair = AlphaBetaNega(-MAX_VAL, MAX_VAL, maxDepth, 1, firstMoves);
+				maxDepth++;
 
-				maxdepth++;
+				pair.Item1 *= board.IsWhiteToMove ? 1 : -1;
 			}
 
-			Console.WriteLine("BBV2 Depth: " + maxdepth + " Positions: " + posCounter.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("000 000") + " Line: [" + string.Join(" ", pair.Item2) + " Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000"));
+			Console.Write("BBV3 Depth: " + (maxDepth - 1).ToString("00") + " Positions: " + posCounter.ToString("000 000 000") + " Distinct: " + evalTable.Count.ToString("000 000 000") + " Time: " + timer.MillisecondsElapsedThisTurn.ToString("000 000") + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("0 000 000") + " Best Line: "); //DEBUG
+			PrintLine();
+			Console.WriteLine(" Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
+
+			void PrintLine()
+			{
+				for (int i = 0; i < pair.Item2.Count; i++)
+				{
+					Console.Write(pair.Item2[i].GetSANString(board) + " ");
+
+					board.MakeMove(pair.Item2[i]);
+				}
+
+				for (int i = pair.Item2.Count - 1; i >= 0; i--)
+				{
+					board.UndoMove(pair.Item2[i]);
+				}
+			}
+
+			//Console.WriteLine("Move done: " + pair.Item2.GetSANString(board));
 
 			return pair.Item2[0];
 
-			(int, List<Move>) DFS(int depth, int alpha, int beta, int eval, int slack)
+			(int, List<Move>) AlphaBetaNega(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
 			{
-				posCounter++;
-
-				Move[] moves = board.GetLegalMoves();
-
-				var maximize = board.IsWhiteToMove;
-				var factor = maximize ? -1 : 1;
-
-				if (board.IsInCheckmate() || board.IsDraw())
-					return (eval, new List<Move>() { Move.NullMove });
-
-				if (depth >= maxdepth)
-					return (eval, new List<Move>() { });
-
-				int best = maximize ? int.MinValue : int.MaxValue;
-				List<Move> bestLine = new List<Move>();
-
-				(int, Move)[] next = moves.Select(x =>
+				//Finished result || Patt
+				if (moves.Length == 0 || localEval == 0)
 				{
-					board.MakeMove(x);
-					var eval = Eval();
-					board.UndoMove(x);
-
-					return (eval, x);
-				}).ToArray();
-
-				//TODO optimize
-				Array.Sort(next, (x, y) => factor * x.Item1.CompareTo(y.Item1));
-
-				if (Abs(next[0].Item1) > MIN_CHECKMATE_SCORE)
-					return (next[0].Item1, new List<Move>() { next[0].Item2 });
-
-
-				foreach (var (local, move) in next)
-				{
-
-					board.MakeMove(move);
-
-					//stack.Push(move);
-					int extraDepth = 1;
-					if (slack > 0 && (board.IsInCheck() || move.IsCapture))
-					{
-						extraDepth--;
-					}
-
-					var (val, line) = DFS(depth + extraDepth, alpha, beta, local, slack - 1 + extraDepth);
-
-					if (maximize)
-					{
-						if (val > best)
-						{
-							best = val;
-							bestLine.Clear();
-							bestLine.Add(move);
-							bestLine.AddRange(line);
-						}
-
-
-						alpha = Max(alpha, best);
-					}
-					else
-					{
-						if (val < best)
-						{
-							best = val;
-
-							bestLine.Clear();
-							bestLine.Add(move);
-							bestLine.AddRange(line);
-						}
-
-						beta = Min(beta, best);
-					}
-
-					board.UndoMove(move);
-					//stack.Pop();
-
-					if (beta <= alpha)
-						break;
+					//board.Print();
+					return (localEval, new List<Move>());
 				}
 
-				return (best, bestLine);
+				if (depthLeft == 0)
+					return (Quiscence(alpha, beta, SLACK, localEval, moves), new List<Move>());
 
-				int Eval()
+				(int, Move[])[] evals = new (int, Move[])[moves.Length];
+
+				for (int i = 0; i < moves.Length; i++)
 				{
-					var factor = board.IsWhiteToMove ? -1 : 1;
+					board.MakeMove(moves[i]);
 
-					if (board.IsInCheckmate())
-						return factor * (CHECKMATE_SCORE - (depth + (START_SLACK - slack)) * PAWN);
+					evals[i] = StaticEval(moves[i]);
 
-					if (board.IsDraw())
-						return 0;
+					board.UndoMove(moves[i]);
+				}
 
-					if (evalTable.TryGetValue(board.ZobristKey, out var val))
+				//Smallest value first
+				Array.Sort(evals, moves, comp);
+
+				List<Move> bestLine = new List<Move>();
+				for (int i = 0; i < moves.Length; i++) //Reverse so it starts with best move
+				{
+					var m = moves[i];
+					//Console.WriteLine(new string('\t', maxDepth - depthLeft) + "N: " + m.GetSANString(board) + " [" + evals[i].Item2.Length + "] Eval: " + (evals[i].Item1 * (board.IsWhiteToMove ? -1 : 1)));
+					board.MakeMove(m);
+
+					int kek = 1;
+
+					if (m.IsCapture || board.IsInCheck() || evals[i].Item2.Length == 1)
+						kek = 0;
+
+					var (score, line) = AlphaBetaNega(-beta, -alpha, depthLeft - kek, evals[i].Item1, evals[i].Item2);
+					score = -score;
+					board.UndoMove(m);
+
+					if (score >= beta)
 					{
-						return val;
+						//Console.WriteLine("Alpha beta break");
+						return (beta, line);   //  fail hard beta-cutoff
 					}
 
-					int sum = CountPieces();
+					if (score > alpha)
+					{
+						alpha = score; // alpha acts like max in MiniMax
 
-					int enemryMovesLength = 0;
-					board.MakeMove(Move.NullMove);
-					enemryMovesLength = board.GetLegalMoves().Length;
-					board.UndoMove(Move.NullMove);
+						bestLine.Clear();
+						bestLine.Add(m);
+						bestLine.AddRange(line);
+					}
+				}
 
-					sum -= factor * ((board.GetLegalMoves().Length - enemryMovesLength));
+				return (alpha, bestLine);
 
-					sum += EdgeDistance(board.GetKingSquare(true)) - EdgeDistance(board.GetKingSquare(false));
+				int CaptureScore(Move m) => m.IsCapture ?
+					PIECE_WEIGHT[(int)m.CapturePieceType] - PIECE_WEIGHT[(int)m.MovePieceType] : 0;
+
+
+				//TODO Static Exchange Evaluation
+				int Quiscence(int alpha, int beta, int depthLeft, int localEval, Move[] moves)
+				{
+					if (localEval >= beta)
+						return beta;
+
+					if (alpha < localEval)
+						alpha = localEval;
+
+					//Finished result || Patt
+					if (moves.Length == 0 || localEval == 0 || depthLeft == 0)
+						return localEval;
+
+					(int, Move[])[] evals = new (int, Move[])[moves.Length];
+
+					//Console.WriteLine("Legal moves: " + string.Join(" ", moves.Select(x => x.GetSANString(board))));
+
+					for (int i = 0; i < moves.Length; i++)
+					{
+						board.MakeMove(moves[i]);
+						evals[i] = StaticEval(moves[i]);
+						board.UndoMove(moves[i]);
+					}
+
+					Array.Sort(evals, moves, comp);
+
+					for (int i = 0; i < moves.Length; i++)
+					{
+						var m = moves[i];
+						if (!m.IsCapture) continue;
+
+						// Console.WriteLine(new string('\t', SLACK - depthLeft + maxDepth) + "Q: " + m.GetSANString(board) + " [" + evals[i].Item2.Where(x => x.IsCapture).Count() + "] Eval: " + (evals[i].Item1 * (board.IsWhiteToMove ? -1 : 1)));
+						board.MakeMove(m);
+
+						//Console.WriteLine("Legal moves: " + string.Join(" ", evals[i].Item2.Select(x => x.GetSANString(board))));
+						var score = -Quiscence(-beta, -alpha, depthLeft - 1, evals[i].Item1, evals[i].Item2);
+						board.UndoMove(m);
+
+						if (score >= beta)
+							return beta;   //  fail hard beta-cutoff
+
+						if (score > alpha)
+							alpha = score; // alpha acts like max in MiniMax
+					}
+
+					return alpha;
+				}
+				//Returns positive value if next moving player is better
+				(int, Move[]) StaticEval(Move lastMove)
+				{
+					posCounter++;
+
+					//board.Print();
+
+					var legalMoves = board.GetLegalMoves();
+					var factor = board.IsWhiteToMove ? 1 : -1;
+
+					if (board.IsDraw())
+						return (0, legalMoves);
+
+					if (board.IsInCheckmate())
+						return (-(CHECK_MATE_EVAL - (maxDepth - depthLeft)), legalMoves);
+
+					if (evalTable.TryGetValue(board.ZobristKey, out var val))
+						return (val, legalMoves);
+
+					//Whites perspective
+					int sum = 0;
+
+					var pieceList = board.GetAllPieceLists();
+
+					sum += pieceList[0].Sum(x => PAWN_PUSH_BONUS[x.Square.Rank]);
+					sum -= pieceList[6].Sum(x => PAWN_PUSH_BONUS[7 - x.Square.Rank]);
+
+					for (int i = 0; i < 6; i++)
+					{
+						var cost = PIECE_WEIGHT[i + 1];
+						sum += pieceList[i].Count * cost;
+						sum -= pieceList[i + 6].Count * cost;
+					}
+
+					if (board.TrySkipTurn())
+					{
+						Span<Move> opponentMoves = stackalloc Move[218];
+						board.GetLegalMovesNonAlloc(ref opponentMoves);
+						board.UndoSkipTurn();
+
+						sum += (legalMoves.Length - opponentMoves.Length) * factor * MOVE_COUNT_WEIGHT;
+
+						//Center 
+						int centerScore = 0;
+						//Tempo penalty
+						var bestTempo = 0;
+
+						foreach (Move m in legalMoves)
+						{
+							bestTempo = Max(bestTempo, CaptureScore(m));
+							centerScore += CenterScore(m);
+						}
+
+						var bestTempoOpponent = 0;
+						foreach (Move m in opponentMoves)
+						{
+							bestTempoOpponent = Max(bestTempoOpponent, CaptureScore(m));
+							centerScore -= CenterScore(m);
+						}
+
+						sum += Sign(bestTempo - bestTempoOpponent) * 50 * factor;
+
+						int CenterScore(Move m)
+						{
+							int index = m.TargetSquare.Index;
+							return (index >= 26 && index < 30 ||
+								index >= 34 && index < 38) &&
+								(m.MovePieceType == PieceType.Knight || m.MovePieceType == PieceType.Bishop) ? 1 : 0;
+						}
+
+						ulong whitePawns = board.GetPieceBitboard(PieceType.Pawn, true);
+						ulong blackPawns = board.GetPieceBitboard(PieceType.Pawn, false);
+
+						centerScore += CENTER_PAWN_SCORE * (
+							2 * BitboardHelper.GetNumberOfSetBits(whitePawns & DOUBLE_PAWN_CENTER_ATTACK_WHITE) +
+							BitboardHelper.GetNumberOfSetBits(whitePawns & PAWN_CENTER_ATTACK_WHITE) -
+							2 * BitboardHelper.GetNumberOfSetBits(blackPawns & DOUBLE_PAWN_CENTER_ATTACK_BLACK) -
+							BitboardHelper.GetNumberOfSetBits(blackPawns & PAWN_CENTER_ATTACK_BLACK));
+
+						sum += centerScore * CENTER_WEIGHT * factor;
+					}
+					else //Is in check
+						sum -= IN_CHECK_PENALITY * factor;
+
+
+					sum += CastleValue(true) - CastleValue(true);
+
+					int CastleValue(bool white) =>
+						(board.HasKingsideCastleRight(true) || board.HasQueensideCastleRight(true)) ? CASTLE_VALUE : 0;
+
+					if (pieceList.Sum(x => x.Count) < 5)
+						sum += EdgeDistance(board.GetKingSquare(true)) - EdgeDistance(board.GetKingSquare(false));
+
 
 					int EdgeDistance(Square s)
 					{
 						return Min(Min(s.Rank, 7 - s.Rank), Min(s.File, 7 - s.File));
 					}
 
-					//sum += rnd.Next(2);
+					sum *= factor;
+
+					//Eval != Draw
+					if (sum == 0)
+						sum = 1;
 
 					evalTable.Add(board.ZobristKey, sum);
 
-					return sum;
-
-					//TODO Late game values
-					int CountPieces()
-					{
-						/// Pawns(white), Knights (white), Bishops (white), Rooks (white), Queens (white), King (white),
-						/// Pawns (black), Knights (black), Bishops (black), Rooks (black), Queens (black), King (black)
-
-						var list = board.GetAllPieceLists();
-						int ret = 0;
-
-						for (int i = 1; i < 5; i++)
-						{
-							//4 * 8
-							int pieceOffset = 32 * (i - 1);
-							foreach (var piece in list[i])
-							{
-								Square s = piece.Square;
-								ret += PieceBonusMidGame[pieceOffset + s.Rank * 4 + Min(s.File, 7 - s.File)] / 3;
-							}
-
-							foreach (var piece in list[i + 6])
-							{
-								Square s = piece.Square;
-								ret -= PieceBonusMidGame[pieceOffset + (7 - s.Rank) * 4 + Min(s.File, 7 - s.File)] / 3;
-							}
-						}
-
-						foreach (var pawn in list[0])
-							ret += PawnBonusMidGame[pawn.Square.Index];
-
-
-						foreach (var pawn in list[6])
-							ret -= PawnBonusMidGame[new Square(pawn.Square.File, 7 - pawn.Square.Rank).Index];
-
-						return ret;
-					}
+					return (sum, legalMoves);
 				}
 			}
 		}
