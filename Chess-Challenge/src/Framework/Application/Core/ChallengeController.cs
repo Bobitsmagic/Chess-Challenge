@@ -112,12 +112,12 @@ namespace ChessChallenge.Application
             //board.LoadPosition("5k2/4n3/5p2/8/1B6/8/8/K7 w - - 0 1");
             //board.LoadPosition("rnb1kbnr/pp1ppppp/2p5/8/1P1P3P/6q1/P1P1PPP1/RNBQKBNR w KQkq - 1 4");
             //fenIndex = 17;
-            board.LoadPosition(TestCases[fenIndex].Item1);
+            //board.LoadPosition(TestCases[1].Item1);
 
             //board.LoadPosition("3r2k1/1p1b1pp1/pq5p/8/3NR3/2PQ3P/PP3PP1/6K1 b - - ");
 
             if(botMatchGameIndex % 2 == 0)            
-                Console.WriteLine("Expected move: " + TestCases[fenIndex].Item2);
+                Console.WriteLine("Expected move: " + TestCases[1].Item2);
 
             // Player Setup
             PlayerWhite = CreatePlayer(whiteType);
