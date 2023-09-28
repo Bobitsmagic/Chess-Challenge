@@ -116,8 +116,8 @@ namespace ChessChallenge.Application
 
             //board.LoadPosition("3r2k1/1p1b1pp1/pq5p/8/3NR3/2PQ3P/PP3PP1/6K1 b - - ");
 
-            if(botMatchGameIndex % 2 == 0)            
-                Console.WriteLine("Expected move: " + TestCases[1].Item2);
+            //if(botMatchGameIndex % 2 == 0)            
+            //    Console.WriteLine("Expected move: " + TestCases[1].Item2);
 
             // Player Setup
             PlayerWhite = CreatePlayer(whiteType);
