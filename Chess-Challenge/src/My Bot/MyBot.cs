@@ -1,4 +1,5 @@
 ﻿using ChessChallenge.API;
+using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,31 +9,35 @@ public class MyBot : IChessBot
 {
 	const int PAWN = 100;
 	const int CHECK_MATE_EVAL = PAWN * 1000;
-	int MAX_VAL = CHECK_MATE_EVAL * 100;
-	int SLACK = 5;
-	int IN_CHECK_PENALITY = 20;
-	int MOVE_COUNT_WEIGHT = 2;
-	int CENTER_PAWN_SCORE = 3;
-	int CENTER_WEIGHT = 8;
-	int CASTLE_VALUE = 50;
-	int MAX_TABLE_COUNT = 10_000_000;
+	const int MAX_VAL = CHECK_MATE_EVAL * 100;
+	const int SLACK = 5;
+	const int IN_CHECK_PENALITY = 20;
+	const int MOVE_COUNT_WEIGHT = 2;
+	const int CENTER_PAWN_SCORE = 3;
+	const int CENTER_WEIGHT = 8;
+	const int CASTLE_VALUE = 50;
+	const int MAX_TABLE_COUNT = 100_000_000;
 
 	//Bitboards
-	ulong CenterSquares = 258704670720;
-	ulong DOUBLE_PAWN_CENTER_ATTACK_WHITE = 404226048;
-	ulong DOUBLE_PAWN_CENTER_ATTACK_BLACK = 26491358281728;
-	ulong PAWN_CENTER_ATTACK_WHITE = 606339072;
-	ulong PAWN_CENTER_ATTACK_BLACK = 39737037422592;
+	const ulong CenterSquares = 258704670720;
+	const ulong DOUBLE_PAWN_CENTER_ATTACK_WHITE = 404226048;
+	const ulong DOUBLE_PAWN_CENTER_ATTACK_BLACK = 26491358281728;
+	const ulong PAWN_CENTER_ATTACK_WHITE = 606339072;
+	const ulong PAWN_CENTER_ATTACK_BLACK = 39737037422592;
 
 	//None, Pawn, Knight, Bishop, Rook, Queen, King
 	int[] PIECE_WEIGHT = { 0, PAWN, 280, 320, 460, 910, CHECK_MATE_EVAL };
-	int[] PAWN_PUSH_BONUS = { 0, 1, 3, 10, 20, 30, 50, 0};
+	int[] PAWN_PUSH_BONUS = { 0, 1, 3, 10, 20, 30, 50, 0 };
 
 	Dictionary<ulong, int> book = new()
 	{
 		{  13227872743731781434, 16 }, //Start position, e4
-		{  15607329186585411972, 16 }  //Start position + e4, e5
+		{  15607329186585411972, 16 },  //Start position + e4, e5
+		{ 17664629573069429839,  11 }
 	};
+
+	Dictionary<ulong, int>[] bestMoveIndex = new Dictionary<ulong, int>[3];
+	Dictionary<ulong, int>[] branchEval = new Dictionary<ulong, int>[20];
 
 	class Comp : IComparer<(int, Move[])>
 	{
@@ -41,54 +46,53 @@ public class MyBot : IChessBot
 
 	static Comp comp = new();
 
-	public Move Think(Board board, Timer timer)
+	public MyBot()
 	{
-		///BitboardHelper.VisualizeBitboard(0x4400000000000000UL);
+		for(int i = 0; i < bestMoveIndex.Length; i++)
+		{
+			bestMoveIndex[i] = new Dictionary<ulong, int>();
+		}
+	}
 
-		long MEM_BEFORE = GC.GetTotalMemory(true); //#DEBUG
-		
+	public Move Think(Board board, Timer timer)
+	{	
 		Dictionary<ulong, int> evalTable = new();
+		long MEM_BEFORE = GC.GetTotalMemory(true); 
 
-		//key, (depth left, eval)
-		//Dictionary<ulong, (int, int)> depthTable = new Dictionary<ulong, (int, int)>();
-
-		//board.Print();
+		foreach (Dictionary<ulong, int> dic in bestMoveIndex)
+			dic.Clear();
 
 		var pair = (0, Move.NullMove);
-		long posCounter = 0; //#DEBUG
+		long posCounter = 0;
 		var firstMoves = board.GetLegalMoves();
 
-		long evalHitCounter = 0; //#DEBUG
-		long quietCounter = 0;//#DEBUG
-		long qHitCounter = 0;//#DEBUG
-		long checkEvalCounter = 0;//#DEBUG
+		long evalHitCounter = 0; 
+		long checkEvalCounter = 0;
 
 		if (firstMoves.Length == 1)
 			return firstMoves[0];
 
-		if(book.TryGetValue(board.ZobristKey, out var index))
+		if (book.TryGetValue(board.ZobristKey, out var index))
 		{
-			return firstMoves[index];				
+			return firstMoves[index];
 		}
 
-		//Console.WriteLine("Key: " + board.ZobristKey);
-		//int kekek = Array.IndexOf(firstMoves, new Move("e7e5", board));
-		//Console.WriteLine(kekek);
-
-
-        int maxDepth = 1;
+		int currentMaxDepth = 1;
 		while (posCounter < 1_000_000 && !(Abs(pair.Item1) + 10 >= CHECK_MATE_EVAL))
 		{
-			AlphaBetaNega(-MAX_VAL, MAX_VAL, maxDepth, 1, firstMoves, false);
-			maxDepth++;
+			AlphaBetaNega(-MAX_VAL, MAX_VAL, currentMaxDepth, 1, firstMoves, false);
 
 			pair.Item1 *= board.IsWhiteToMove ? 1 : -1;
+			board.Print();
+   //         Console.WriteLine("BmCount: " + string.Join(" ", bestMoves.Select(x => x.Count)) + " matchCount: " + matchCount + " usefulCount: " + usefullCount);
+			//Console.WriteLine("Memory: " + ((GC.GetTotalMemory(true) - MEM_BEFORE) / 1_000_000).ToString("000") + " mb");
+			Console.Write("Depth: " + currentMaxDepth.ToString("00") + " StaticEvals: " + posCounter.ToString("000 000 000") + " EvalHits: " + ((double)evalHitCounter / posCounter) .ToString("0.000") + " Time: " + timer.MillisecondsElapsedThisTurn.ToString("000 000") + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("0 000 000"));
 
-            Console.WriteLine("Memory: " + (GC.GetTotalMemory(true) - MEM_BEFORE).ToString("000 000 000"));//#DEBUG
-			Console.Write("Depth: " + (maxDepth - 1).ToString("00") + " StaticEvals: " + posCounter.ToString("000 000 000") + " EvalHits: " + ((double)evalHitCounter / posCounter) .ToString("0.000") + " QHits: " + ((double)qHitCounter / quietCounter).ToString("0.000") + " Time: " + timer.MillisecondsElapsedThisTurn.ToString("000 000") + " Nodes/s: " + (posCounter * 1000 / (timer.MillisecondsElapsedThisTurn + 1)).ToString("0 000 000")); //#DEBUG
-			Console.WriteLine(" Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000")); //#DEBUG
+			Console.Write(" Move: " + pair.Item2.GetSANString(board));
+			
+			Console.WriteLine(" Eval: " + (pair.Item1 / (float)PAWN).ToString("00.000"));
 
-            Console.WriteLine(checkEvalCounter); //#DEBUG
+            currentMaxDepth++;
         }
 
 		return pair.Item2;
@@ -117,28 +121,67 @@ public class MyBot : IChessBot
 			{
 				if (depthLeft == 0)
 				{					
-					quietCounter++; //#DEBUG
-
 					return AlphaBetaNega(alpha, beta, SLACK, localEval, moves, true);
 				}
 			}
 
-            var evals = new (int, Move[])[moves.Length];
+			int depth = currentMaxDepth - depthLeft;
 
-			for(int i = 0; i < moves.Length; i++)
+            var evals = new (int, Move[])[moves.Length];
+			int lookUpIndex = -1;
+
+			if(depth < bestMoveIndex.Length && !quisccence)
+			{
+				if (bestMoveIndex[depth].TryGetValue(board.ZobristKey, out int index))
+					lookUpIndex = index;
+			}
+			
+			for (int i = 0; i < moves.Length; i++)
 			{
 				board.MakeMove(moves[i]);
-
 				evals[i] = StaticEval(moves[i]);
-
 				board.UndoMove(moves[i]);
 			}
+			
 
 			//Smallest value first
 			Array.Sort(evals, moves, comp);
 
+			if(lookUpIndex >= 0)
+			{
+				var m = moves[lookUpIndex];
+
+				//Console.WriteLine(new string('\t', maxDepth - depthLeft) + "N: " + m.GetSANString(board) + " [" + evals[i].Item2.Length + "] Eval: " + (evals[i].Item1 * (board.IsWhiteToMove ? -1 : 1)));
+				board.MakeMove(m);
+
+				var score = AlphaBetaNega(-beta, -alpha, depthLeft - (moves.Length == 1 ? 0 : 1), evals[lookUpIndex].Item1, evals[lookUpIndex].Item2, quisccence);
+				score = -score;
+				board.UndoMove(m);
+
+				if (score >= beta)
+				{
+					//Console.WriteLine("Alpha beta break");
+					return beta;   // fail hard beta-cutoff
+				}
+
+				if (score > alpha)
+				{
+					alpha = score; // alpha acts like max in MiniMax
+
+					if (!quisccence && depthLeft == currentMaxDepth)
+					{
+						pair = (score, m);
+					}
+				}
+			}
+
+
+
 			for (int i = 0; i < moves.Length; i++) 
 			{
+				if (lookUpIndex == i)
+					continue;
+
 				var m = moves[i];
 
 				if (quisccence && !m.IsCapture)
@@ -161,12 +204,26 @@ public class MyBot : IChessBot
 				{
 					alpha = score; // alpha acts like max in MiniMax
 
-					if (!quisccence && depthLeft == maxDepth)
+					if (!quisccence)
 					{
-						pair = (score, m);
+						if (depth < bestMoveIndex.Length)
+						{
+							if (!bestMoveIndex[depth].TryAdd(board.ZobristKey, i))
+							{
+								bestMoveIndex[depth][board.ZobristKey] = i;
+							}
+						}
+
+						if (depth == 0)
+						{
+							pair = (score, m);
+						}
 					}
+
 				}
 			}
+
+
 
 			return alpha;
 
@@ -182,7 +239,7 @@ public class MyBot : IChessBot
 					return (0, legalMoves);
 
 				if (board.IsInCheckmate())
-					return (-(CHECK_MATE_EVAL - (maxDepth - depthLeft)), legalMoves);
+					return (-(CHECK_MATE_EVAL - (currentMaxDepth - depthLeft)), legalMoves);
 
 				if (evalTable.TryGetValue(board.ZobristKey, out var val))
 				{
