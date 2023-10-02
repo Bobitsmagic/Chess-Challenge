@@ -1,5 +1,8 @@
-use crate::{bitboard_helper, constants, uci_move::{UCIMove, self}, piece_list::{PieceList, self}, chess_move::ChessMove, zoberist_hash};
-use std::{cmp, string, ops::Index};
+use crate::{bitboard_helper, constants, uci_move::{UCIMove, self}, piece_list::{PieceList, self}, chess_move::ChessMove, zoberist_hash, board};
+use std::{cmp, string, ops::Index, sync::atomic::AtomicU64, ptr::copy_nonoverlapping};
+
+pub static mut MAKE_MOVE_COUNTER: AtomicU64 = AtomicU64::new(0);
+pub static mut MOVE_GEN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy)]
 pub struct Board {
@@ -343,6 +346,11 @@ impl Board {
 
     pub fn make_move(&mut self, m: &ChessMove) {
         
+        unsafe {
+            *MAKE_MOVE_COUNTER.get_mut() += 1;
+            //print!("x");
+        }
+
         if m.move_piece_type == constants::WHITE_KING {
             self.white_queen_castle = false;
             self.white_king_castle = false;
@@ -416,32 +424,16 @@ impl Board {
         self.whites_turn = !self.whites_turn;
     }
     
-    pub fn generate_pseudo_legal_moves(&self) -> Vec<ChessMove> {
+    pub fn generate_pseudo_legal_moves(&self) -> Vec<ChessMove> {      
         let mut list: Vec<ChessMove> = Vec::new();
         let moving_color: u8 = if self.whites_turn { 0 } else { 1 };
-
-        //Knight moves
-        let moving_knight = (constants::WHITE_KNIGHT | moving_color);
-        let mut piece_list = self.piece_lists[moving_knight as usize];
-
-        for i in 0..piece_list.count() {
-            let start_square = piece_list.get_occupied_square(i);
-            
-            for target_square in KNIGHT_MOVES[start_square as usize] {              
-                let target_piece_type = self.piece_field[*target_square as usize];
-
-                if target_piece_type == constants::EMPTY || target_piece_type & 1 != moving_color {
-                    list.push(ChessMove::new_move(start_square, *target_square, moving_knight, target_piece_type))
-                }
-            }
-        }
 
         //Pawns
         let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
         let start_rank: u8 = if self.whites_turn { 1 } else { 6 };
         let promotion_rank: u8 = if self.whites_turn { 7 } else { 0 };      
-        let moving_pawn = (constants::WHITE_PAWN | moving_color);
-        piece_list = self.piece_lists[moving_pawn as usize];
+        let mut move_piece_type = (constants::WHITE_PAWN | moving_color);
+        let mut piece_list = self.piece_lists[move_piece_type as usize];
         for i in 0..piece_list.count() {
             let start_square = piece_list.get_occupied_square(i);
             let x = start_square % 8;
@@ -452,13 +444,13 @@ impl Board {
             //forward move 
             if  self.piece_field[target_square as usize] == constants::EMPTY {
                 
-                self.add_pawn_move(start_square, target_square, moving_pawn, constants::EMPTY, promotion_rank, &mut list);
+                self.add_pawn_move(start_square, target_square, move_piece_type, constants::EMPTY, promotion_rank, &mut list);
 
                 target_square = (start_square as i32 + 2 * 8 * pawn_direction) as u8;
 
                 if start_square / 8 == start_rank {
                     if self.piece_field[target_square as usize] == constants::EMPTY {
-                        list.push(ChessMove::new_move(start_square, target_square, moving_pawn, constants::EMPTY));
+                        list.push(ChessMove::new_move(start_square, target_square, move_piece_type, constants::EMPTY));
                     }
                 }
             }
@@ -468,11 +460,11 @@ impl Board {
                 target_square = (start_square as i32 + 8 * pawn_direction - 1) as u8;
                 let target_piece_type = self.piece_field[target_square as usize];
                 if  target_piece_type != constants::EMPTY && target_piece_type & 1 != moving_color || target_square == self.castle_move_square || target_square == self.castle_start_square {
-                    self.add_pawn_move(start_square, target_square, moving_pawn, target_piece_type, promotion_rank, &mut list);
+                    self.add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, &mut list);
                 }
 
                 if target_square == self.en_passant_square {
-                    list.push(ChessMove::new_pawn_move(start_square, target_square, moving_pawn, constants::EMPTY, constants::EMPTY, true));
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, constants::EMPTY, constants::EMPTY, true));
                 }
             }
 
@@ -481,15 +473,31 @@ impl Board {
                 target_square = (start_square as i32 + 8 * pawn_direction + 1) as u8;
                 let target_piece_type = self.piece_field[target_square as usize];
                 if  target_piece_type != constants::EMPTY && target_piece_type & 1 != moving_color || target_square == self.castle_move_square || target_square == self.castle_start_square {
-                    self.add_pawn_move(start_square, target_square, moving_pawn, target_piece_type, promotion_rank, &mut list);
+                    self.add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, &mut list);
                 }
 
                 if target_square == self.en_passant_square {
-                    list.push(ChessMove::new_pawn_move(start_square, target_square, moving_pawn, constants::EMPTY, constants::EMPTY, true));
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, constants::EMPTY, constants::EMPTY, true));
                 }
             }
         }
 
+
+        //Knight moves
+        move_piece_type = (constants::WHITE_KNIGHT | moving_color);
+        piece_list = self.piece_lists[move_piece_type as usize];
+
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            
+            for target_square in KNIGHT_MOVES[start_square as usize] {              
+                let target_piece_type = self.piece_field[*target_square as usize];
+
+                if target_piece_type == constants::EMPTY || target_piece_type & 1 != moving_color {
+                    list.push(ChessMove::new_move(start_square, *target_square, move_piece_type, target_piece_type))
+                }
+            }
+        }
 
         fn add_slide_move(start_square: u8, target_square: u8, move_piece_type: u8, target_piece_type: u8, moving_color: u8, list: &mut Vec<ChessMove>) -> bool{
             if target_piece_type == constants::EMPTY || target_piece_type & 1 != moving_color {
@@ -499,51 +507,6 @@ impl Board {
             return target_piece_type != constants::EMPTY
         }
 
-        //Rook
-        let mut move_piece_type = (constants::WHITE_ROOK | moving_color);
-        piece_list = self.piece_lists[move_piece_type as usize];
-        for i in 0..piece_list.count() {
-            let start_square = piece_list.get_occupied_square(i);
-            let x = start_square % 8;
-            let y = start_square / 8;
-
-            for ty in (y + 1)..8 {
-                let target_square = x + ty * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
-
-                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
-                    break;
-                }
-            }
-            
-            for ty in (0..y).rev() {
-                let target_square = x + ty * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
-
-                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
-                    break;
-                }
-            }
-
-            for tx in (x + 1)..8 {
-                let target_square = tx + y * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
-
-                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
-                    break;
-                }
-            }
-            
-            for tx in (0..x).rev() {
-                let target_square = tx + y * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
-
-                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
-                    break;
-                }
-            }
-        }
-        
         //Bishop
         move_piece_type = (constants::WHITE_BISHOP | moving_color);
         piece_list = self.piece_lists[move_piece_type as usize];
@@ -587,6 +550,51 @@ impl Board {
             //down left
             for delta in 1..(cmp::min(x, y) + 1) {
                 let target_square = start_square - delta * 9;
+                let target_piece_type = self.piece_field[target_square as usize];
+
+                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
+                    break;
+                }
+            }
+        }
+
+        //Rook
+        move_piece_type = (constants::WHITE_ROOK | moving_color);
+        piece_list = self.piece_lists[move_piece_type as usize];
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            let x = start_square % 8;
+            let y = start_square / 8;
+
+            for ty in (y + 1)..8 {
+                let target_square = x + ty * 8;
+                let target_piece_type = self.piece_field[target_square as usize];
+
+                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
+                    break;
+                }
+            }
+            
+            for ty in (0..y).rev() {
+                let target_square = x + ty * 8;
+                let target_piece_type = self.piece_field[target_square as usize];
+
+                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
+                    break;
+                }
+            }
+
+            for tx in (x + 1)..8 {
+                let target_square = tx + y * 8;
+                let target_piece_type = self.piece_field[target_square as usize];
+
+                if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
+                    break;
+                }
+            }
+            
+            for tx in (0..x).rev() {
+                let target_square = tx + y * 8;
                 let target_piece_type = self.piece_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
@@ -723,16 +731,368 @@ impl Board {
     }
 
     pub fn has_king_capture(&self) -> bool {
-        let moves = self.generate_pseudo_legal_moves();
+        let king_square = if self.whites_turn { self.black_king_pos } else { self.white_king_pos };
+
+        if self.has_pseudo_capture_on_square(king_square) {
+            return true;
+        }
+
+        if self.castle_start_square != 255 {
+            return self.has_pseudo_capture_on_square(self.castle_start_square) || 
+                self.has_pseudo_capture_on_square(self.castle_move_square);    
+        }
+
+        return false;
+    }
+
+    pub fn has_pseudo_capture_on_square(&self, capture_square: u8) -> bool {
+        let moving_color: u8 = if self.whites_turn { 0 } else { 1 };
+
+        let capture_x = capture_square % 8;
+        let capture_y = capture_square / 8;
+
+        //Pawns
+        let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
+        let mut move_piece_type = (constants::WHITE_PAWN | moving_color);
+        let mut piece_list = self.piece_lists[move_piece_type as usize];
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            let x = start_square % 8;
+            
+            //capture left
+            if x > 0 {
+                if (start_square as i32 + 8 * pawn_direction - 1) as u8 == capture_square {
+                    return  true;
+                }
+            }
+
+            //capture right
+            if x < 7 {
+                if (start_square as i32 + 8 * pawn_direction + 1) as u8 == capture_square {
+                    return  true;
+                }
+            }
+        }
+
+        //[TODO] distance check?
+        //Knight moves
+        move_piece_type = (constants::WHITE_KNIGHT | moving_color);
+        piece_list = self.piece_lists[move_piece_type as usize];
+
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            
+
+            for target_square in KNIGHT_MOVES[start_square as usize] {             
+                if *target_square == capture_square {
+                    return  true;
+                } 
+            }
+        }
+
+        //[TODO] same Diagonal check?
+        //Bishop
+        move_piece_type = (constants::WHITE_BISHOP | moving_color);
+        piece_list = self.piece_lists[move_piece_type as usize];
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            let x = start_square % 8;
+            let y = start_square / 8;
+            
+            //x - y == capture_x - capture_y
+            if x + capture_y == y + capture_x {
+                if x < capture_x {
+                    //up right 
+                    for delta in 1..(cmp::min(7 - x, 7 - y) + 1) {
+                        let target_square = start_square + delta * 9;
+    
+                        if target_square == capture_square {
+                            return true;
+                        }
+    
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    //down left
+                    for delta in 1..(cmp::min(x, y) + 1) {
+                        let target_square = start_square - delta * 9;
+    
+                        if target_square == capture_square {
+                            return true;
+                        }
+    
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if x + y == capture_x + capture_y {
+                if x < capture_x {
+                    //down right
+                    for delta in 1..(cmp::min(7 - x, y) + 1) {
+                        let target_square = start_square - delta * 7;
+                        if target_square == capture_square {
+                            return true;
+                        }
+
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    //up left
+                    for delta in 1..(cmp::min(x, 7 - y) + 1) {
+                        let target_square = start_square + delta * 7;
+    
+                        if target_square == capture_square {
+                            return true;
+                        }
+    
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        //[TODO] same file/rank check
+        //Rook
+        move_piece_type = (constants::WHITE_ROOK | moving_color);
+        piece_list = self.piece_lists[move_piece_type as usize];
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            let x = start_square % 8;
+            let y = start_square / 8;
+
+            if x == capture_x {
+                if y < capture_y {
+                    for ty in (y + 1)..8 {
+                        let target_square = x + ty * 8;
         
+                        if target_square == capture_square {
+                            return true;
+                        }
         
-        for m in &moves {
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else{
+                    for ty in (0..y).rev() {
+                        let target_square = x + ty * 8;
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if y == capture_y {
+                if x < capture_x {
+                    for tx in (x + 1)..8 {
+                        let target_square = tx + y * 8;
+        
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    for tx in (0..x).rev() {
+                        let target_square = tx + y * 8;
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        //Queen
+        move_piece_type = (constants::WHITE_QUEEN | moving_color);
+        piece_list = self.piece_lists[move_piece_type as usize];
+        for i in 0..piece_list.count() {
+            let start_square = piece_list.get_occupied_square(i);
+            let x = start_square % 8;
+            let y = start_square / 8;
+
+            //rook moves
+            if x == capture_x {
+                if y < capture_y {
+                    for ty in (y + 1)..8 {
+                        let target_square = x + ty * 8;
+        
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else{
+                    for ty in (0..y).rev() {
+                        let target_square = x + ty * 8;
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if y == capture_y {
+                if x < capture_x {
+                    for tx in (x + 1)..8 {
+                        let target_square = tx + y * 8;
+        
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    for tx in (0..x).rev() {
+                        let target_square = tx + y * 8;
+                        if target_square == capture_square {
+                            return true;
+                        }
+        
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+        
+            //Bishop Moves
+            //x - y == capture_x - capture_y
+            if x + capture_y == y + capture_x {
+                if x < capture_x {
+                    //up right 
+                    for delta in 1..(cmp::min(7 - x, 7 - y) + 1) {
+                        let target_square = start_square + delta * 9;
+    
+                        if target_square == capture_square {
+                            return true;
+                        }
+    
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    //down left
+                    for delta in 1..(cmp::min(x, y) + 1) {
+                        let target_square = start_square - delta * 9;
+    
+                        if target_square == capture_square {
+                            return true;
+                        }
+    
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if x + y == capture_x + capture_y {
+                if x < capture_x {
+                    //down right
+                    for delta in 1..(cmp::min(7 - x, y) + 1) {
+                        let target_square = start_square - delta * 7;
+                        if target_square == capture_square {
+                            return true;
+                        }
+
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+                else {
+                    //up left
+                    for delta in 1..(cmp::min(x, 7 - y) + 1) {
+                        let target_square = start_square + delta * 7;
+    
+                        if target_square == capture_square {
+                            return true;
+                        }
+    
+                        if self.piece_field[target_square as usize] != constants::EMPTY {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        //King
+        let king_pos = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
+        let moving_king = (constants::WHITE_KING | moving_color);
+        for target_square in KING_MOVES[king_pos as usize] {              
+            if *target_square == capture_square {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    pub fn get_legal_moves(&self) -> Vec<ChessMove> {
+        let mut list = self.generate_pseudo_legal_moves();
+
+        //println!("Pseudo legal moves: ");
+        //Self::print_moves(&list);
+        
+        self.filter_legal_moves(&mut list);
+
+        return list;
+    }
+    
+    pub fn has_king_capture_cached(&self, moves: &Vec<ChessMove>) -> bool {        
+        for m in moves {
             if m.target_piece_type >> 1 == constants::KING {
                 return true;
             }
-            //cant be in check before or during castle
-            if m.target_square == self.castle_move_square || m.target_square == self.castle_start_square {
-                return  true;
+        }
+        
+        if self.castle_move_square != 255 {
+            for m in moves {
+                //cant be in check before or during castle
+                if m.target_square == self.castle_move_square || m.target_square == self.castle_start_square {
+                    return  true;
+                }
             }
         }
 
@@ -760,15 +1120,21 @@ impl Board {
         }
     }
     
-    pub fn get_legal_moves(&self) -> Vec<ChessMove> {
-        let mut list = self.generate_pseudo_legal_moves();
 
-        //println!("Pseudo legal moves: ");
-        //Self::print_moves(&list);
-        
-        self.filter_legal_moves(&mut list);
+    pub fn get_legel_boards(&self, pseudo_legal_moves: Vec<ChessMove>) -> Vec<(ChessMove, Board, Vec<ChessMove>)> {
+        let mut ret: Vec<(ChessMove, Board, Vec<ChessMove>)> = Vec::with_capacity(pseudo_legal_moves.len());
 
-        return list;
+        for m in pseudo_legal_moves {          
+            let mut buffer = (*self).clone();
+            buffer.make_move(&m);
+            let next_pseudo = buffer.generate_pseudo_legal_moves();
+
+            if !buffer.has_king_capture_cached(&next_pseudo) {
+                ret.push((m, buffer, next_pseudo));
+            }    
+        }
+
+        return ret;
     }   
 
     pub fn print_moves(list: &Vec<ChessMove>){
