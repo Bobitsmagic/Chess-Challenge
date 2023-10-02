@@ -1,15 +1,17 @@
-use crate::{bitboard_helper, piece_type, uci_move::{UCIMove, self}, piece_list::{PieceList, self}, chess_move::ChessMove, zoberist_hash};
-use std::cmp;
+use crate::{bitboard_helper, constants, uci_move::{UCIMove, self}, piece_list::{PieceList, self}, chess_move::ChessMove, zoberist_hash};
+use std::{cmp, string, ops::Index};
 
 #[derive(Clone, Copy)]
 pub struct Board {
     //Flags
     whites_turn: bool,
     en_passant_square: u8,
-    white_left_castle: bool,
-    white_right_castle: bool,
-    black_left_castle: bool,
-    black_right_castle: bool,
+    castle_move_square: u8,
+    castle_start_square: u8,
+    white_queen_castle: bool,
+    white_king_castle: bool,
+    black_queen_castle: bool,
+    black_king_castle: bool,
 
     //Pieces
     piece_field: [u8; 64],
@@ -159,7 +161,7 @@ impl Board {
     pub fn gen_zoberist_hash(&self) -> u64 {
         let mut hash = 0;
         for i in 0..64 {
-            if self.piece_field[i] != piece_type::EMPTY {
+            if self.piece_field[i] != constants::EMPTY {
                 hash ^= zoberist_hash::VALUES[i][self.piece_field[i] as usize];
             }
         }
@@ -167,52 +169,137 @@ impl Board {
         return  hash;
     }
 
-    pub fn start_position() -> Board {
+    pub fn empty_board() -> Self {
+        let piece_field: [u8; 64] = [constants::EMPTY; 64];
+        let mut piece_lists: [PieceList; 10] = [PieceList::new(); 10];
+
+        return Board { whites_turn: true, en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, piece_field, piece_lists, white_queen_castle: false, white_king_castle: false, black_queen_castle: false, black_king_castle: false, white_king_pos: 4, black_king_pos: 60 };
+    }
+    pub fn start_position() -> Self {
         let piece_field: [u8; 64] = [
-            piece_type::WHITE_ROOK, piece_type::WHITE_KNIGHT, piece_type::WHITE_BISHOP, piece_type::WHITE_QUEEN,
-            piece_type::WHITE_KING, piece_type::WHITE_BISHOP, piece_type::WHITE_KNIGHT, piece_type::WHITE_ROOK,
-            piece_type::WHITE_PAWN, piece_type::WHITE_PAWN, piece_type::WHITE_PAWN, piece_type::WHITE_PAWN, 
-            piece_type::WHITE_PAWN, piece_type::WHITE_PAWN, piece_type::WHITE_PAWN, piece_type::WHITE_PAWN,
+            constants::WHITE_ROOK, constants::WHITE_KNIGHT, constants::WHITE_BISHOP, constants::WHITE_QUEEN,
+            constants::WHITE_KING, constants::WHITE_BISHOP, constants::WHITE_KNIGHT, constants::WHITE_ROOK,
+            constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN, 
+            constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN,
             
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, 
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY, 
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
 
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
-            piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY, piece_type::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
+            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
 
-            piece_type::BLACK_PAWN, piece_type::BLACK_PAWN, piece_type::BLACK_PAWN, piece_type::BLACK_PAWN, 
-            piece_type::BLACK_PAWN, piece_type::BLACK_PAWN, piece_type::BLACK_PAWN, piece_type::BLACK_PAWN,
-            piece_type::BLACK_ROOK, piece_type::BLACK_KNIGHT, piece_type::BLACK_BISHOP, piece_type::BLACK_QUEEN,
-            piece_type::BLACK_KING, piece_type::BLACK_BISHOP, piece_type::BLACK_KNIGHT, piece_type::BLACK_ROOK,
+            constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN, 
+            constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN,
+            constants::BLACK_ROOK, constants::BLACK_KNIGHT, constants::BLACK_BISHOP, constants::BLACK_QUEEN,
+            constants::BLACK_KING, constants::BLACK_BISHOP, constants::BLACK_KNIGHT, constants::BLACK_ROOK,
         ];
 
         let mut piece_lists: [PieceList; 10] = [PieceList::new(); 10];
 
         for i in 0..piece_field.len() {
             let p = piece_field[i];
-            if p < piece_type::WHITE_KING {
+            if p < constants::WHITE_KING {
                 piece_lists[p as usize].add_at_square(i as u8);
             }
         }
 
-        return Board { whites_turn: true, en_passant_square: 255, piece_field, piece_lists, white_left_castle: true, white_right_castle: true, black_left_castle: true, black_right_castle: true, white_king_pos: 4, black_king_pos: 60 };
+        return Board { whites_turn: true, en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, piece_field, piece_lists, white_queen_castle: true, white_king_castle: true, black_queen_castle: true, black_king_castle: true, white_king_pos: 4, black_king_pos: 60 };
+    }
+
+    //half move clock and full move number missing
+    pub fn from_fen(fen: &str) -> Self {
+        let parts = fen.split(" ").collect::<Vec<_>>();
+        let mut board = Board::empty_board();
+        
+        let mut square = 64 - 8;
+        for c in parts[0].chars() {
+            if c == '/' {
+                square -= 16;
+                continue;
+            }
+            
+            let index = constants::PIECE_CHAR.iter().position(|&r| r == c).unwrap();
+            
+            if index <= constants::BLACK_KING as usize {
+                board.add_piece(square, index as u8);
+                
+                square += 1;
+            }
+            else {
+                square += (index - 12) as u8;
+            }
+        }
+        
+        board.whites_turn = parts[1] == "w";
+        
+        for c in parts[2].chars() {
+            match c {
+                'K' => board.white_king_castle = true,
+                'Q' => board.white_queen_castle = true,
+                'k' => board.black_king_castle = true,
+                'q' => board.black_queen_castle = true,
+                _ => ()
+            }
+        }
+        
+        if parts[3] != "-" {
+            board.en_passant_square = constants::SQUARE_NAME.iter().position(|&r| r == parts[3]).unwrap() as u8;
+        }
+
+        println!("Loaded FEN {}", fen);
+        board.print();
+        
+        return board;
+    }
+    
+    pub fn get_fen(&self) -> String {
+        let mut s = "".to_owned();
+        for y in (0..8).rev() {
+            let mut empty_count = 0;
+            for x in 0..8 {
+                let square = x + y * 8;
+
+                if self.piece_field[square as usize] != constants::EMPTY {
+                    if empty_count > 0 {
+                        s += &empty_count.to_string();
+                        empty_count = 0;
+                    }
+
+                    s += &constants::PIECE_CHAR[self.piece_field[square as usize] as usize].to_string();
+                }
+                else {
+                    empty_count += 1;
+                }
+            }
+
+            if empty_count > 0 {
+                s += &empty_count.to_string();
+            }
+
+            if y != 0 {
+                s += "/";
+            }
+        }
+
+        return s;
     }
 
     pub fn add_piece(&mut self, square: u8, piece: u8) {
         debug_assert!(square < 64);
-        debug_assert!(piece < piece_type::EMPTY);
+        debug_assert!(piece < constants::EMPTY);
+
         self.piece_field[square as usize] = piece;
 
 
-        if piece == piece_type::WHITE_KING {
+        if piece == constants::WHITE_KING {
             self.white_king_pos = square;
             return;
         }
-        if piece == piece_type::BLACK_KING {
+        if piece == constants::BLACK_KING {
             self.black_king_pos = square;
             return;
         }
@@ -222,17 +309,17 @@ impl Board {
     pub fn remove_piece(&mut self, square: u8) {
         debug_assert!(square < 64);
         let piece = self.piece_field[square as usize];
-        debug_assert!(piece < piece_type::EMPTY);
+        debug_assert!(piece < constants::EMPTY);
 
 
-        self.piece_field[square as usize] = piece_type::EMPTY;
+        self.piece_field[square as usize] = constants::EMPTY;
 
         //HACK?
-        if piece == piece_type::WHITE_KING {
+        if piece == constants::WHITE_KING {
             //self.white_king_pos = 255;
             return;
         }
-        if piece == piece_type::BLACK_KING {
+        if piece == constants::BLACK_KING {
             //self.black_king_pos = 255;
             return;
         }
@@ -256,32 +343,32 @@ impl Board {
 
     pub fn make_move(&mut self, m: &ChessMove) {
         
-        if m.move_piece_type == piece_type::WHITE_KING {
-            self.white_left_castle = false;
-            self.white_right_castle = false;
+        if m.move_piece_type == constants::WHITE_KING {
+            self.white_queen_castle = false;
+            self.white_king_castle = false;
         }
         
-        if m.move_piece_type == piece_type::BLACK_KING {
-            self.black_left_castle = false;
-            self.black_right_castle = false;
+        if m.move_piece_type == constants::BLACK_KING {
+            self.black_queen_castle = false;
+            self.black_king_castle = false;
         }
         
         if m.start_square == 0 || m.target_square == 0 {
-            self.white_left_castle = false;
+            self.white_queen_castle = false;
         }
         if m.start_square == 7 || m.target_square == 7 {
-            self.white_right_castle = false;
+            self.white_king_castle = false;
         }
         if m.start_square == 56 || m.target_square == 56 {
-            self.black_left_castle = false;
+            self.black_queen_castle = false;
         }
         if m.start_square == 63 || m.target_square == 63 {
-            self.black_right_castle = false;
+            self.black_king_castle = false;
         }
         
         let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
         //double pawn move
-        if m.move_piece_type >> 1 == piece_type::PAWN && m.start_square.abs_diff(m.target_square) == 16 {
+        if m.move_piece_type >> 1 == constants::PAWN && m.start_square.abs_diff(m.target_square) == 16 {
             self.en_passant_square = (m.target_square as i32 - pawn_direction * 8) as u8;
             //println!("Found ep square {}", self.en_passant_square);
         }
@@ -289,19 +376,24 @@ impl Board {
             self.en_passant_square = 255
         }
         
-        
         //Moves the rooks
         if m.is_castle() {
-            self.white_king_pos = m.target_square;
             let king_height = m.start_square / 8;
             
+            self.castle_move_square = (m.start_square + m.target_square) / 2;
+            self.castle_start_square = m.start_square;
             //left castle
-            if m.start_square < m.target_square {
-                self.move_piece(0 + king_height * 8, m.target_square + 1);  
+            if m.start_square > m.target_square {
+                self.move_piece(0 + king_height * 8, m.target_square + 1);
             }
+            //right castle
             else {
                 self.move_piece(7 + king_height * 8, m.target_square - 1);      
             }
+        }
+        else {
+            self.castle_move_square = 255;
+            self.castle_start_square = 255;
         }
         
         if m.is_capture() && !m.is_en_passant {
@@ -329,7 +421,7 @@ impl Board {
         let moving_color: u8 = if self.whites_turn { 0 } else { 1 };
 
         //Knight moves
-        let moving_knight = (piece_type::WHITE_KNIGHT | moving_color);
+        let moving_knight = (constants::WHITE_KNIGHT | moving_color);
         let mut piece_list = self.piece_lists[moving_knight as usize];
 
         for i in 0..piece_list.count() {
@@ -338,7 +430,7 @@ impl Board {
             for target_square in KNIGHT_MOVES[start_square as usize] {              
                 let target_piece_type = self.piece_field[*target_square as usize];
 
-                if target_piece_type == piece_type::EMPTY || target_piece_type & 1 != moving_color {
+                if target_piece_type == constants::EMPTY || target_piece_type & 1 != moving_color {
                     list.push(ChessMove::new_move(start_square, *target_square, moving_knight, target_piece_type))
                 }
             }
@@ -348,7 +440,7 @@ impl Board {
         let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
         let start_rank: u8 = if self.whites_turn { 1 } else { 6 };
         let promotion_rank: u8 = if self.whites_turn { 7 } else { 0 };      
-        let moving_pawn = (piece_type::WHITE_PAWN | moving_color);
+        let moving_pawn = (constants::WHITE_PAWN | moving_color);
         piece_list = self.piece_lists[moving_pawn as usize];
         for i in 0..piece_list.count() {
             let start_square = piece_list.get_occupied_square(i);
@@ -358,15 +450,15 @@ impl Board {
             let mut target_square = (start_square as i32 + 8 * pawn_direction) as u8;
 
             //forward move 
-            if  self.piece_field[target_square as usize] == piece_type::EMPTY {
+            if  self.piece_field[target_square as usize] == constants::EMPTY {
                 
-                self.add_pawn_move(start_square, target_square, moving_pawn, piece_type::EMPTY, promotion_rank, &mut list);
+                self.add_pawn_move(start_square, target_square, moving_pawn, constants::EMPTY, promotion_rank, &mut list);
 
                 target_square = (start_square as i32 + 2 * 8 * pawn_direction) as u8;
 
                 if start_square / 8 == start_rank {
-                    if self.piece_field[target_square as usize] == piece_type::EMPTY {
-                        list.push(ChessMove::new_move(start_square, target_square, moving_pawn, piece_type::EMPTY));
+                    if self.piece_field[target_square as usize] == constants::EMPTY {
+                        list.push(ChessMove::new_move(start_square, target_square, moving_pawn, constants::EMPTY));
                     }
                 }
             }
@@ -375,12 +467,12 @@ impl Board {
             if x > 0 {
                 target_square = (start_square as i32 + 8 * pawn_direction - 1) as u8;
                 let target_piece_type = self.piece_field[target_square as usize];
-                if  target_piece_type != piece_type::EMPTY && target_piece_type & 1 != moving_color{
+                if  target_piece_type != constants::EMPTY && target_piece_type & 1 != moving_color || target_square == self.castle_move_square || target_square == self.castle_start_square {
                     self.add_pawn_move(start_square, target_square, moving_pawn, target_piece_type, promotion_rank, &mut list);
                 }
 
                 if target_square == self.en_passant_square {
-                    list.push(ChessMove::new_pawn_move(start_square, target_square, moving_pawn, piece_type::EMPTY, piece_type::EMPTY, true));
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, moving_pawn, constants::EMPTY, constants::EMPTY, true));
                 }
             }
 
@@ -388,27 +480,27 @@ impl Board {
             if x < 7 {
                 target_square = (start_square as i32 + 8 * pawn_direction + 1) as u8;
                 let target_piece_type = self.piece_field[target_square as usize];
-                if  target_piece_type != piece_type::EMPTY && target_piece_type & 1 != moving_color{
+                if  target_piece_type != constants::EMPTY && target_piece_type & 1 != moving_color || target_square == self.castle_move_square || target_square == self.castle_start_square {
                     self.add_pawn_move(start_square, target_square, moving_pawn, target_piece_type, promotion_rank, &mut list);
                 }
 
                 if target_square == self.en_passant_square {
-                    list.push(ChessMove::new_pawn_move(start_square, target_square, moving_pawn, piece_type::EMPTY, piece_type::EMPTY, true));
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, moving_pawn, constants::EMPTY, constants::EMPTY, true));
                 }
             }
         }
 
 
         fn add_slide_move(start_square: u8, target_square: u8, move_piece_type: u8, target_piece_type: u8, moving_color: u8, list: &mut Vec<ChessMove>) -> bool{
-            if target_piece_type == piece_type::EMPTY || target_piece_type & 1 != moving_color {
+            if target_piece_type == constants::EMPTY || target_piece_type & 1 != moving_color {
                 list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
             }
 
-            return target_piece_type != piece_type::EMPTY
+            return target_piece_type != constants::EMPTY
         }
 
         //Rook
-        let mut move_piece_type = (piece_type::WHITE_ROOK | moving_color);
+        let mut move_piece_type = (constants::WHITE_ROOK | moving_color);
         piece_list = self.piece_lists[move_piece_type as usize];
         for i in 0..piece_list.count() {
             let start_square = piece_list.get_occupied_square(i);
@@ -453,7 +545,7 @@ impl Board {
         }
         
         //Bishop
-        move_piece_type = (piece_type::WHITE_BISHOP | moving_color);
+        move_piece_type = (constants::WHITE_BISHOP | moving_color);
         piece_list = self.piece_lists[move_piece_type as usize];
         for i in 0..piece_list.count() {
             let start_square = piece_list.get_occupied_square(i);
@@ -504,7 +596,7 @@ impl Board {
         }
 
         //Queen
-        move_piece_type = (piece_type::WHITE_QUEEN | moving_color);
+        move_piece_type = (constants::WHITE_QUEEN | moving_color);
         piece_list = self.piece_lists[move_piece_type as usize];
         for i in 0..piece_list.count() {
             let start_square = piece_list.get_occupied_square(i);
@@ -591,38 +683,38 @@ impl Board {
 
         //King
         let king_pos = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
-        let moving_king = (piece_type::WHITE_KING | moving_color);
+        let moving_king = (constants::WHITE_KING | moving_color);
         for target_square in KING_MOVES[king_pos as usize] {              
             let target_piece_type = self.piece_field[*target_square as usize];
 
-            if target_piece_type == piece_type::EMPTY || target_piece_type & 1 != moving_color {
+            if target_piece_type == constants::EMPTY || target_piece_type & 1 != moving_color {
                 list.push(ChessMove::new_move(king_pos, *target_square, moving_king, target_piece_type))
             }
         }
         
         if self.whites_turn {
-            if self.white_left_castle {
-                if self.piece_field[1] == piece_type::EMPTY && self.piece_field[2] == piece_type::EMPTY && self.piece_field[1] == piece_type::EMPTY {
-                    list.push(ChessMove::new_move(king_pos, 2, moving_king, piece_type::EMPTY))
+            if self.white_queen_castle {
+                if self.piece_field[1] == constants::EMPTY && self.piece_field[2] == constants::EMPTY && self.piece_field[3] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 2, moving_king, constants::EMPTY));
                 }
             }
 
-            if self.white_right_castle {
-                if self.piece_field[5] == piece_type::EMPTY && self.piece_field[6] == piece_type::EMPTY {
-                    list.push(ChessMove::new_move(king_pos, 6, moving_king, piece_type::EMPTY))
+            if self.white_king_castle {
+                if self.piece_field[5] == constants::EMPTY && self.piece_field[6] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 6, moving_king, constants::EMPTY));
                 }
             }
         }
         else {
-            if self.black_left_castle {
-                if self.piece_field[57] == piece_type::EMPTY && self.piece_field[58] == piece_type::EMPTY && self.piece_field[59] == piece_type::EMPTY {
-                    list.push(ChessMove::new_move(king_pos, 58, moving_king, piece_type::EMPTY))
+            if self.black_queen_castle {
+                if self.piece_field[57] == constants::EMPTY && self.piece_field[58] == constants::EMPTY && self.piece_field[59] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 58, moving_king, constants::EMPTY));
                 }
             }
 
-            if self.white_right_castle {
-                if self.piece_field[61] == piece_type::EMPTY && self.piece_field[62] == piece_type::EMPTY {
-                    list.push(ChessMove::new_move(king_pos, 62, moving_king, piece_type::EMPTY))
+            if self.black_king_castle {
+                if self.piece_field[61] == constants::EMPTY && self.piece_field[62] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 62, moving_king, constants::EMPTY));
                 }
             }
         }
@@ -630,13 +722,17 @@ impl Board {
         return list;
     }
 
-    //[TODO] castle stuff
     pub fn has_king_capture(&self) -> bool {
         let moves = self.generate_pseudo_legal_moves();
         
-        for m in moves {
-            if m.target_piece_type >> 1 == piece_type::KING {
+        
+        for m in &moves {
+            if m.target_piece_type >> 1 == constants::KING {
                 return true;
+            }
+            //cant be in check before or during castle
+            if m.target_square == self.castle_move_square || m.target_square == self.castle_start_square {
+                return  true;
             }
         }
 
@@ -667,15 +763,18 @@ impl Board {
     pub fn get_legal_moves(&self) -> Vec<ChessMove> {
         let mut list = self.generate_pseudo_legal_moves();
 
+        //println!("Pseudo legal moves: ");
+        //Self::print_moves(&list);
+        
         self.filter_legal_moves(&mut list);
 
         return list;
     }   
 
-    pub fn print_moves(list: Vec<ChessMove>){
+    pub fn print_moves(list: &Vec<ChessMove>){
         print!("Moves {}[", list.len());
     
-        for m in &list {
+        for m in list {
             m.print();  
             print!(" ");      
         }
@@ -685,31 +784,29 @@ impl Board {
 
     fn add_pawn_move(&self, start_square: u8, target_square: u8, move_piece_type: u8, target_piece_type: u8, promotion_rank: u8, list: &mut Vec<ChessMove>) {
         if(target_square / 8 == promotion_rank) {
-            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, piece_type::WHITE_KNIGHT | (move_piece_type & 1), false));
-            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, piece_type::WHITE_BISHOP | (move_piece_type & 1), false));
-            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, piece_type::WHITE_ROOK   | (move_piece_type & 1), false));
-            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, piece_type::WHITE_QUEEN  | (move_piece_type & 1), false));
+            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, constants::WHITE_KNIGHT | (move_piece_type & 1), false));
+            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, constants::WHITE_BISHOP | (move_piece_type & 1), false));
+            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, constants::WHITE_ROOK   | (move_piece_type & 1), false));
+            list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, target_piece_type, constants::WHITE_QUEEN  | (move_piece_type & 1), false));
         }
         else {
             list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
         }
     }
-
+ 
     pub fn get_piece_color(&self, index: u8) -> u8 {
         debug_assert!(index < 64);
 
         let piece = self.piece_field[index as usize];
-        if  piece == piece_type::EMPTY {
+        if  piece == constants::EMPTY {
             return 2;
         }
 
         return piece & 1;
     }
 
-
     pub fn print(&self) {
         const PIECE_CHAR: [char; 13] = ['P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k', ' '];
-
         println!("   {}", String::from_utf8(vec![b'_'; 16]).unwrap());
 
         for y in (0..8).rev() {
@@ -726,6 +823,31 @@ impl Board {
         println!("   {}", String::from_utf8(vec![b'-'; 16]).unwrap());
         println!("   a b c d e f g h");
 
-        println!("Ep: {}", self.en_passant_square)
+        if self.white_king_castle || self.white_queen_castle || self.black_king_castle || self.black_queen_castle {
+            //KQkq
+
+            if self.white_king_castle {
+                print!("K");
+            }
+            if self.white_queen_castle {
+                print!("Q");
+            }
+            if self.black_king_castle {
+                print!("k");
+            }
+            if self.black_queen_castle {
+                print!("q");
+            }
+
+            println!();
+        }
+        println!("{}", if self.whites_turn { "White to move" } else { "Black to move" });
+        if self.en_passant_square != 255 {
+            println!("Ep: {}", constants::SQUARE_NAME[self.en_passant_square as usize]);
+        }
+        if self.castle_move_square != 255 {
+            println!("Castle start square: {}", constants::SQUARE_NAME[self.castle_start_square as usize]);
+            println!("Castle move square: {}", constants::SQUARE_NAME[self.castle_move_square as usize]);
+        }
     }
 }

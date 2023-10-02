@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using static System.Math;
 
@@ -55,7 +56,9 @@ public class MyBot : IChessBot
 	}
 
 	public Move Think(Board board, Timer timer)
-	{	
+	{
+		Kek(board);
+
 		Dictionary<ulong, int> evalTable = new();
 		long MEM_BEFORE = GC.GetTotalMemory(true); 
 
@@ -340,5 +343,56 @@ public class MyBot : IChessBot
 				return (sum, legalMoves);
 			}
 		}	
+	}
+
+	public void Kek(Board board)
+	{
+		List<string> fens = new List<string>();
+		//string s = "";
+		const int MAX_DEPTH = 4;
+		DFS(MAX_DEPTH);
+
+
+
+		File.WriteAllLines("kek.txt", fens);
+        Console.WriteLine("Done");
+        //Console.WriteLine(s);
+
+
+        void DFS(int depthLeft)
+		{
+			var list = board.GetLegalMoves();
+			Array.Sort(list, (x, y) => x.ToString().CompareTo(y.ToString()));
+
+			string prefix = new string('\t', MAX_DEPTH - depthLeft);
+
+			if(depthLeft == 0)
+			{
+				//s += prefix + list.Length + "[" + string.Join(" ", list.Where(x => x.IsCastles)) + "]";
+				return;
+			}
+
+			//s += prefix + list.Length + "[\n";
+			foreach(Move m in list)
+			{
+				if (depthLeft == 1 && !m.IsCastles) {
+					continue;
+				}
+
+				board.MakeMove(m);
+
+				if (depthLeft == 1)
+				{
+					fens.Add(board.GetFenString().Split(" ")[0]);
+					//Console.WriteLine(board.GetFenString().Split(" ")[0]);
+				}
+				//s += prefix + "\t" + m.ToString();
+				DFS(depthLeft - 1);
+
+				board.UndoMove(m);
+			}
+
+			//s += prefix + "]\n";
+		}
 	}
 }

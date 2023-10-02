@@ -1,4 +1,4 @@
-use crate::piece_type;
+use crate::constants;
 
 pub struct UCIMove {
     value: u16,
@@ -45,11 +45,11 @@ impl UCIMove {
 
     pub fn promotion_piece_type(&self) -> u8 {
         return match self.get_flag() {
-            PROMOTE_TO_ROOK_FLAG => piece_type::ROOK,
-            PROMOTE_TO_KNIGHT_FLAG => piece_type::KNIGHT,
-            PROMOTE_TO_BISHOP_FLAG => piece_type::BISHOP,
-            PROMOTE_TO_QUEEN_FLAG => piece_type::QUEEN,
-            _ => piece_type::EMPTY
+            PROMOTE_TO_ROOK_FLAG => constants::ROOK,
+            PROMOTE_TO_KNIGHT_FLAG => constants::KNIGHT,
+            PROMOTE_TO_BISHOP_FLAG => constants::BISHOP,
+            PROMOTE_TO_QUEEN_FLAG => constants::QUEEN,
+            _ => constants::EMPTY
         }
     }
 }
