@@ -18,6 +18,7 @@ pub struct Board {
 
     //Pieces
     piece_field: [u8; 64],
+    piece_map: [u8; 64],
     piece_lists: [PieceList; 10],
     white_king_pos: u8,
     black_king_pos: u8,
@@ -174,43 +175,13 @@ impl Board {
 
     pub fn empty_board() -> Self {
         let piece_field: [u8; 64] = [constants::EMPTY; 64];
-        let mut piece_lists: [PieceList; 10] = [PieceList::new(); 10];
+        let piece_lists: [PieceList; 10] = [PieceList::new(); 10];
+        let piece_map: [u8; 64] = [255; 64];
 
-        return Board { whites_turn: true, en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, piece_field, piece_lists, white_queen_castle: false, white_king_castle: false, black_queen_castle: false, black_king_castle: false, white_king_pos: 4, black_king_pos: 60 };
+        return Board { whites_turn: true, en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, piece_field, piece_lists, piece_map, white_queen_castle: false, white_king_castle: false, black_queen_castle: false, black_king_castle: false, white_king_pos: 4, black_king_pos: 60 };
     }
     pub fn start_position() -> Self {
-        let piece_field: [u8; 64] = [
-            constants::WHITE_ROOK, constants::WHITE_KNIGHT, constants::WHITE_BISHOP, constants::WHITE_QUEEN,
-            constants::WHITE_KING, constants::WHITE_BISHOP, constants::WHITE_KNIGHT, constants::WHITE_ROOK,
-            constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN, 
-            constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN, constants::WHITE_PAWN,
-            
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY, 
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-            constants::EMPTY, constants::EMPTY, constants::EMPTY, constants::EMPTY,
-
-            constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN, 
-            constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN, constants::BLACK_PAWN,
-            constants::BLACK_ROOK, constants::BLACK_KNIGHT, constants::BLACK_BISHOP, constants::BLACK_QUEEN,
-            constants::BLACK_KING, constants::BLACK_BISHOP, constants::BLACK_KNIGHT, constants::BLACK_ROOK,
-        ];
-
-        let mut piece_lists: [PieceList; 10] = [PieceList::new(); 10];
-
-        for i in 0..piece_field.len() {
-            let p = piece_field[i];
-            if p < constants::WHITE_KING {
-                piece_lists[p as usize].add_at_square(i as u8);
-            }
-        }
-
-        return Board { whites_turn: true, en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, piece_field, piece_lists, white_queen_castle: true, white_king_castle: true, black_queen_castle: true, black_king_castle: true, white_king_pos: 4, black_king_pos: 60 };
+        return Self::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     }
 
     //half move clock and full move number missing
@@ -307,7 +278,7 @@ impl Board {
             return;
         }
 
-        self.piece_lists[piece as usize].add_at_square(square);
+        self.piece_lists[piece as usize].add_at_square(square, &mut self.piece_map);
     }
     pub fn remove_piece(&mut self, square: u8) {
         debug_assert!(square < 64);
@@ -327,7 +298,7 @@ impl Board {
             return;
         }
 
-        self.piece_lists[piece as usize].remove_at_square(square);
+        self.piece_lists[piece as usize].remove_at_square(square, &mut self.piece_map);
     }
 
     pub fn move_piece(&mut self, start_square: u8, target_square: u8) {
@@ -425,7 +396,7 @@ impl Board {
     }
     
     pub fn generate_pseudo_legal_moves(&self) -> Vec<ChessMove> {      
-        let mut list: Vec<ChessMove> = Vec::new();
+        let mut list: Vec<ChessMove> = Vec::with_capacity(200);
         let moving_color: u8 = if self.whites_turn { 0 } else { 1 };
 
         //Pawns
@@ -1079,7 +1050,7 @@ impl Board {
 
         return list;
     }
-    
+
     pub fn has_king_capture_cached(&self, moves: &Vec<ChessMove>) -> bool {        
         for m in moves {
             if m.target_piece_type >> 1 == constants::KING {
