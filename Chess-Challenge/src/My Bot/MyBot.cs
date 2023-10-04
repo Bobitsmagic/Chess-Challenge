@@ -347,16 +347,16 @@ public class MyBot : IChessBot
 
 	public void Kek(Board board)
 	{
-		List<string> fens = new List<string>();
-		//string s = "";
-		const int MAX_DEPTH = 4;
+		//List<string> fens = new List<string>();
+		string s = "";
+		const int MAX_DEPTH = 1;
 		DFS(MAX_DEPTH);
 
 
 
-		File.WriteAllLines("kek.txt", fens);
+		//File.WriteAllLines("kek.txt", fens);
+        Console.WriteLine(s);
         Console.WriteLine("Done");
-        //Console.WriteLine(s);
 
 
         void DFS(int depthLeft)
@@ -368,31 +368,31 @@ public class MyBot : IChessBot
 
 			if(depthLeft == 0)
 			{
-				//s += prefix + list.Length + "[" + string.Join(" ", list.Where(x => x.IsCastles)) + "]";
+				s += prefix + list.Length + "[" + string.Join(" ", list) + " ]\n";
 				return;
 			}
 
-			//s += prefix + list.Length + "[\n";
+			s += prefix + list.Length + "[\n";
 			foreach(Move m in list)
 			{
-				if (depthLeft == 1 && !m.IsCastles) {
-					continue;
-				}
+				//if (depthLeft == 1 && !m.IsCastles) {
+				//	continue;
+				//}
 
 				board.MakeMove(m);
 
 				if (depthLeft == 1)
 				{
-					fens.Add(board.GetFenString().Split(" ")[0]);
+					//fens.Add(board.GetFenString().Split(" ")[0]);
 					//Console.WriteLine(board.GetFenString().Split(" ")[0]);
 				}
-				//s += prefix + "\t" + m.ToString();
+				s += prefix + "\t" + m.ToString();
 				DFS(depthLeft - 1);
 
 				board.UndoMove(m);
 			}
 
-			//s += prefix + "]\n";
+			s += prefix + "]\n";
 		}
 	}
 }
