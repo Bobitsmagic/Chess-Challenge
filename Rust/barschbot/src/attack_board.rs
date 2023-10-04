@@ -385,6 +385,15 @@ impl AttackBoard {
         return list;
     }
 
+    pub fn square_is_attacked(&self, whites_turn: bool, square: u8) -> bool {
+        if whites_turn {
+            return self.white_targets[square as usize] != 0;
+        }
+        else {
+            return self.black_targets[square as usize] != 0; 
+        }
+    }
+
     pub fn print_square_attacker(&self, square: u8, piece_type: u8) {
         let is_white = piece_type & 1 == 0;
 
