@@ -1,4 +1,4 @@
-use crate::{bitboard_helper, constants, uci_move::{UCIMove, self}, piece_list::{PieceList, self}, chess_move::{ChessMove, self}, zoberist_hash, board, attack_board::{AttackBoard, self}};
+use crate::{bitboard_helper, constants, attack_board, uci_move::{UCIMove, self}, piece_list::{PieceList, self}, chess_move::ChessMove, zoberist_hash, board};
 use std::{cmp, string, ops::Index };
 use arrayvec::ArrayVec;
 
@@ -20,9 +20,6 @@ pub struct Board {
     piece_lists: [PieceList; 10],
     white_king_pos: u8,
     black_king_pos: u8,
-
-    //Extra data 
-    attack_board: AttackBoard
 }
 
 const KING_MOVES: [&[u8]; 64] = [
@@ -176,12 +173,7 @@ impl Board {
         let piece_lists: [PieceList; 10] = [PieceList::new(); 10];
         let piece_map: [u8; 64] = [255; 64];
 
-        return Board { whites_turn: true, 
-            en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, 
-            piece_field, piece_lists, piece_map, 
-            white_queen_castle: false, white_king_castle: false, black_queen_castle: false, black_king_castle: false, 
-            white_king_pos: 4, black_king_pos: 60,
-            attack_board: AttackBoard::empty() };
+        return Board { whites_turn: true, en_passant_square: 255, castle_move_square: 255, castle_start_square: 255, piece_field, piece_lists, piece_map, white_queen_castle: false, white_king_castle: false, black_queen_castle: false, black_king_castle: false, white_king_pos: 4, black_king_pos: 60 };
     }
     pub fn start_position() -> Self {
         return Self::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -202,7 +194,6 @@ impl Board {
             let index = constants::PIECE_CHAR.iter().position(|&r| r == c).unwrap();
             
             if index <= constants::BLACK_KING as usize {
-                //println!("Adding {} at {}" , constants::PIECE_CHAR[index], constants::SQUARE_NAME[square as usize]);
                 board.add_piece(square, index as u8);
                 
                 square += 1;
@@ -266,37 +257,39 @@ impl Board {
         return s;
     }
 
-    pub fn add_piece(&mut self, square: u8, piece_type: u8) {
+    pub fn add_piece(&mut self, square: u8, piece: u8) {
         debug_assert!(square < 64);
-        debug_assert!(piece_type < constants::EMPTY);
+        debug_assert!(piece < constants::EMPTY);
 
-        self.piece_field[square as usize] = piece_type;
+        self.piece_field[square as usize] = piece;
 
-        self.attack_board.add_at_square(square, piece_type, &self.piece_field);
 
-        if piece_type == constants::WHITE_KING {
+        if piece == constants::WHITE_KING {
             self.white_king_pos = square;
             return;
         }
-        if piece_type == constants::BLACK_KING {
+        if piece == constants::BLACK_KING {
             self.black_king_pos = square;
             return;
         }
 
-        self.piece_lists[piece_type as usize].add_at_square(square, &mut self.piece_map);
-
-
+        self.piece_lists[piece as usize].add_at_square(square, &mut self.piece_map);
     }
     pub fn remove_piece(&mut self, square: u8) {
         debug_assert!(square < 64);
         let piece = self.piece_field[square as usize];
         debug_assert!(piece < constants::EMPTY);
 
-        self.attack_board.remove_at_square(square, &self.piece_field);
 
         self.piece_field[square as usize] = constants::EMPTY;
 
-        if piece == constants::WHITE_KING ||  piece == constants::BLACK_KING {   
+        //HACK?
+        if piece == constants::WHITE_KING {
+            //self.white_king_pos = 255;
+            return;
+        }
+        if piece == constants::BLACK_KING {
+            //self.black_king_pos = 255;
             return;
         }
 
@@ -305,14 +298,12 @@ impl Board {
 
     pub fn move_piece(&mut self, start_square: u8, target_square: u8) {
         debug_assert!(target_square != start_square);
-        let piece_type = self.piece_field[start_square as usize];
 
+        self.add_piece(target_square, self.piece_field[start_square as usize]);
         self.remove_piece(start_square);
-        self.add_piece(target_square, piece_type);
     }
 
     pub fn capture_piece(&mut self, start_square: u8, target_square: u8) {
-        //println!("Capture at {}", constants::SQUARE_NAME[target_square as usize]);
         self.remove_piece(target_square);
 
         self.move_piece(start_square, target_square);
@@ -681,35 +672,29 @@ impl Board {
             }
         }
         
-        if !self.in_check() {
-            if self.whites_turn {
-                if self.white_queen_castle {
-                    if self.piece_field[1] == constants::EMPTY && self.piece_field[2] == constants::EMPTY && self.piece_field[3] == constants::EMPTY && 
-                        !self.attack_board.square_is_attacked(!self.whites_turn, 3) {
-                        list.push(ChessMove::new_move(king_pos, 2, moving_king, constants::EMPTY));
-                    }
-                }
-    
-                if self.white_king_castle {
-                    if self.piece_field[5] == constants::EMPTY && self.piece_field[6] == constants::EMPTY && 
-                        !self.attack_board.square_is_attacked(!self.whites_turn, 5) {
-                        list.push(ChessMove::new_move(king_pos, 6, moving_king, constants::EMPTY));
-                    }
+        if self.whites_turn {
+            if self.white_queen_castle {
+                if self.piece_field[1] == constants::EMPTY && self.piece_field[2] == constants::EMPTY && self.piece_field[3] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 2, moving_king, constants::EMPTY));
                 }
             }
-            else {
-                if self.black_queen_castle {
-                    if self.piece_field[57] == constants::EMPTY && self.piece_field[58] == constants::EMPTY && self.piece_field[59] == constants::EMPTY && 
-                        !self.attack_board.square_is_attacked(!self.whites_turn, 59) {
-                        list.push(ChessMove::new_move(king_pos, 58, moving_king, constants::EMPTY));
-                    }
+
+            if self.white_king_castle {
+                if self.piece_field[5] == constants::EMPTY && self.piece_field[6] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 6, moving_king, constants::EMPTY));
                 }
-    
-                if self.black_king_castle {
-                    if self.piece_field[61] == constants::EMPTY && self.piece_field[62] == constants::EMPTY && 
-                        !self.attack_board.square_is_attacked(!self.whites_turn, 61) {
-                        list.push(ChessMove::new_move(king_pos, 62, moving_king, constants::EMPTY));
-                    }
+            }
+        }
+        else {
+            if self.black_queen_castle {
+                if self.piece_field[57] == constants::EMPTY && self.piece_field[58] == constants::EMPTY && self.piece_field[59] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 58, moving_king, constants::EMPTY));
+                }
+            }
+
+            if self.black_king_castle {
+                if self.piece_field[61] == constants::EMPTY && self.piece_field[62] == constants::EMPTY {
+                    list.push(ChessMove::new_move(king_pos, 62, moving_king, constants::EMPTY));
                 }
             }
         }
@@ -717,67 +702,186 @@ impl Board {
         return list;
     }
 
-    //does not check castle move
-    pub fn check_move_legality(&self, m: ChessMove) -> bool {
-        let mut res = true;
-        let mut attack_board = self.attack_board.clone();
+    pub fn has_king_capture(&self) -> bool {
+        let king_square = if self.whites_turn { self.black_king_pos } else { self.white_king_pos };
 
-
-
-        if m.is_en_passant {
-            let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
-            let pt = self.remove_attacker((m.target_square as i8 - pawn_direction as i8 * 8) as u8, &mut attack_board);
-            
-            res = !self.in_check_after_move(m, &mut attack_board);
-        }
-        else { //Normal move
-            if m.is_capture() {
-                self.remove_attacker(m.target_square, &mut attack_board);
-
-                res = !self.in_check_after_move(m, &mut attack_board);
-            }
-            else {
-                res = !self.in_check_after_move(m, &mut attack_board);
-            }
+        if self.has_pseudo_capture_on_square(king_square) {
+            return true;
         }
 
-        //m.print();
-        //println!(" Res: {res}");
-          
-        return res;        
-    }
-    
-    pub fn in_check(&self) -> bool {
-        let king_square = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
+        if self.castle_start_square != 255 {
+            return self.has_pseudo_capture_on_square(self.castle_start_square) || 
+                self.has_pseudo_capture_on_square(self.castle_move_square);    
+        }
 
-        return self.attack_board.square_is_attacked(!self.whites_turn, king_square);
+        return false;
     }
-    fn in_check_after_move(self, m: ChessMove, attack_board: &mut AttackBoard) -> bool {
-        self.move_attacker(m.start_square, m.target_square, attack_board);
-        let mut king_square = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
 
-        if m.move_piece_type >> 1 == constants::KING {
-            king_square = m.target_square;
-            //println!("Turn: {}", self.whites_turn) ;
+    pub fn has_pseudo_capture_on_square(&self, capture_square: u8) -> bool {
+        let moving_color: u8 = if self.whites_turn { 0 } else { 1 };
+
+        let capture_x = capture_square % 8;
+        let capture_y = capture_square / 8;
+
+        //Pawns
+        let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
+        
+        let mut move_piece_type = (constants::WHITE_PAWN | moving_color);
+        if capture_x < 7 {
+            if self.piece_field[(capture_square as i32 - 8 * pawn_direction + 1) as usize] == move_piece_type {
+                return  true;
+            }
+        }
+        if capture_x > 0 {
+            if self.piece_field[(capture_square as i32 - 8 * pawn_direction - 1) as usize] == move_piece_type {
+                return  true;
+            }
         }
         
-        return attack_board.square_is_attacked(!self.whites_turn, king_square);
-    }
+        //Knight moves
+        move_piece_type = (constants::WHITE_KNIGHT | moving_color);        
+        for target_square in KNIGHT_MOVES[capture_square as usize] {             
+            if self.piece_field[*target_square as usize] == move_piece_type {
+                return  true;
+            } 
+        }
+        
+        let moving_bishop = (constants::WHITE_BISHOP | moving_color);
+        let moving_rook = (constants::WHITE_ROOK | moving_color);
+        let moving_queen = (constants::WHITE_QUEEN | moving_color);
 
+        //rook moves
+        //up
+        for ty in (capture_y + 1)..8 {
+            let target_square = capture_x + ty * 8;
 
-    pub fn remove_attacker(&self, square: u8, attack_board: &mut AttackBoard) -> u8 {
-        let piece = self.piece_field[square as usize];
-        attack_board.remove_at_square(square, &self.piece_field);
-        return piece;
-    }
-    pub fn add_attacker(&self, square: u8, piece_type: u8, attack_board: &mut AttackBoard) {
-        attack_board.add_at_square(square, piece_type, &self.piece_field);
-    }
-    pub fn move_attacker(&self, start_square: u8, target_square: u8, attack_board: &mut AttackBoard) {
-        let piece_type = self.piece_field[start_square as usize];
+            move_piece_type = self.piece_field[target_square as usize];
 
-        self.remove_attacker(start_square, attack_board);
-        self.add_attacker(target_square, piece_type, attack_board);
+            if move_piece_type == moving_rook || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+        
+        //down
+        for ty in (0..capture_y).rev() {
+            let target_square = capture_x + ty * 8;
+
+            move_piece_type = self.piece_field[target_square as usize];
+
+            if move_piece_type == moving_rook || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+
+        //right
+        for tx in (capture_x + 1)..8 {
+            let target_square = tx + capture_y * 8;
+
+            move_piece_type = self.piece_field[target_square as usize];
+
+            if move_piece_type == moving_rook || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+            
+        //left
+        for tx in (0..capture_x).rev() {
+            let target_square = tx + capture_y * 8;
+
+            move_piece_type = self.piece_field[target_square as usize];
+
+            if move_piece_type == moving_rook || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+            
+        
+        //Bishop Moves
+        //up right 
+        for delta in 1..(cmp::min(7 - capture_x, 7 - capture_y) + 1) {
+            let target_square = capture_square + delta * 9;
+            
+            move_piece_type = self.piece_field[target_square as usize];
+            
+            if move_piece_type == moving_bishop || move_piece_type == moving_queen {
+                return true;
+            }
+            
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+
+        //down left
+        for delta in 1..(cmp::min(capture_x, capture_y) + 1) {
+            let target_square = capture_square - delta * 9;
+
+            move_piece_type = self.piece_field[target_square as usize];
+
+            if move_piece_type == moving_bishop || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+
+        //down right
+        for delta in 1..(cmp::min(7 - capture_x, capture_y) + 1) {
+            let target_square = capture_square - delta * 7;
+            move_piece_type = self.piece_field[target_square as usize];
+
+            if move_piece_type == moving_bishop || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+
+        //up left
+        for delta in 1..(cmp::min(capture_x, 7 - capture_y) + 1) {
+            let target_square = capture_square + delta * 7;
+
+            move_piece_type = self.piece_field[target_square as usize];
+
+            if move_piece_type == moving_bishop || move_piece_type == moving_queen {
+                return true;
+            }
+
+            if move_piece_type != constants::EMPTY {
+                break;
+            }
+        }
+
+        //King
+        let king_pos = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
+        let moving_king = (constants::WHITE_KING | moving_color);
+        for target_square in KING_MOVES[king_pos as usize] {              
+            if *target_square == capture_square {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     pub fn get_legal_moves(&self) -> ArrayVec<ChessMove, 200> {
@@ -796,14 +900,13 @@ impl Board {
 
         for i in 0..list.len() {
             let m = list[i];
-            
-            if !self.check_move_legality(m) {
-                remove.push(i);
 
-                //print!("Filter illegal move: ");
-                //m.print();
-                //println!();
-            }
+            let mut buffer = (*self).clone();
+            buffer.make_move(&m);
+            
+            if buffer.has_king_capture() {
+                remove.push(i);
+            }    
         }
 
         for i in (0..remove.len()).rev() {
@@ -811,7 +914,7 @@ impl Board {
 
             list.remove(index);
         }
-    }   
+    }    
 
     pub fn print_moves(list: &ArrayVec<ChessMove, 200>){
         print!("Moves {}[", list.len());
@@ -878,15 +981,6 @@ impl Board {
         if self.castle_move_square != 255 {
             println!("Castle start square: {}", constants::SQUARE_NAME[self.castle_start_square as usize]);
             println!("Castle move square: {}", constants::SQUARE_NAME[self.castle_move_square as usize]);
-        }
-    }
-
-    pub fn print_attackers(&self) {
-        for s in 0..64 {
-            let pt = self.piece_field[s as usize];
-            if pt != constants::EMPTY {
-                self.attack_board.print_square_attacker(s, pt);
-            }
         }
     }
 }

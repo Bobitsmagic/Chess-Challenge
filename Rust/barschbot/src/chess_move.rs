@@ -33,6 +33,10 @@ impl ChessMove {
         return self.promotion_piece_type != constants::EMPTY;
     }
 
+    pub fn is_white_move(&self) -> bool {
+        return self.move_piece_type & 1 == 0;
+    }
+
     pub fn print_uci(&self) {
         print!("{}{}", constants::SQUARE_NAME[self.start_square as usize], constants::SQUARE_NAME[self.target_square as usize]);
         

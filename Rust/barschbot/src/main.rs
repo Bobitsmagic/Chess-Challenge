@@ -26,7 +26,9 @@ fn main() {
     //b.print_attackers();
     //return;
     //let mut b: Board = Board::start_position();
-    //let mut b: Board = Board::from_fen("r3k2r/p1p1Npb1/bn1ppnp1/3P4/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 2");    
+    //let mut b: Board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/1B1PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R b KQkq - 1 1");    
+    //let list = b.get_legal_moves();
+    //Board::print_moves(&list);
 
     //println!("{}", b.get_fen());
     //Board::print_moves(&b.get_legal_moves());
