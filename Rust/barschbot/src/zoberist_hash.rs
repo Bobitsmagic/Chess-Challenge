@@ -1,4 +1,6 @@
-pub const VALUES: [[u64; 12]; 64] = [
+use crate::{constants, chess_move::{self, ChessMove}};
+
+const SQUARE_PIECE_HASHS: [[u64; 12]; 64] = [
 [3039665143350635744, 17092169764834922902, 3925853326203578338, 17354356390057816443, 7472514735885487017, 15392575389892135373, 6651258979722590487, 7954050523632553952, 4091066645749342542, 7367789944430992549, 11178490497920601604, 15053050127913984131],
 [4887722226293496868, 5982858118796997078, 8576238699864126023, 9201958687904771367, 17261754958921504760, 12567524518805675227, 1893335993551434743, 15601433409731891584, 16247571489014550244, 14777101723219538124, 10128132881256468928, 13721866742607316403],
 [432083089116527842, 1619745982539918128, 6706165792680712556, 8733238636942794458, 1588620480596059980, 554662084526220068, 11996451473773378344, 13744791726981688833, 4267635528192992769, 15275958008117617963, 10848168429927460833, 13834226467308377224],
@@ -63,3 +65,101 @@ pub const VALUES: [[u64; 12]; 64] = [
 [452723905052761537, 1554534145319595072, 14306082199239566931, 6707596385344934159, 17022616788251914509, 13215082151407790480, 3760094611438789173, 11842096929992248944, 16025304198758035351, 2409465853504599901, 11102033258129177772, 13629612132689840455],
 [9044004142118957636, 12127233517740428392, 17342160245270818842, 17250176796685320946, 16591395531375336051, 13954780172636145542, 15598706730880554249, 3717821954965363087, 12698606813635302197, 4502445912403578600, 5758362319240040963, 16778744218263140081],
 [2665686981513730504, 15344938367664663447, 5805032920112100559, 14456798373759690426, 3826888120742576315, 14172161278766343193, 16423366163223261022, 385753308002451097, 11312242080452854152, 15553826185710300139, 15155783689913262883, 3790337915931954493]];
+
+const EP_HASH: u64 = 65286584513730502;
+const WQC_HASH: u64 = 12420616827152515493;
+
+const WKC_HASH: u64 = 8371556456389286746;
+const BQC_HASH: u64 = 17746852737385052894;
+const BKC_HASH: u64 = 8869386327382603398;
+const TURN_HASH: u64 = 8521608624400063290;
+
+#[derive(Clone, Copy)]
+pub struct ZoberistHash {
+    value: u64
+}
+
+impl ZoberistHash {
+    pub fn get_hash(&self) -> u64{
+        return self.value;
+    }
+
+    pub fn new() -> Self {
+        return ZoberistHash { value: 0 }
+    }
+
+    pub fn recalculate_hash(&mut self, piece_field: &[u8; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) {
+        self.value = ZoberistHash::calculate_hash(piece_field, whites_turn,  ep_square, wqc, wkc, bqc, bkc);
+    }
+
+    pub fn calculate_hash(piece_field: &[u8; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) -> u64 {
+        let mut hash = 0;
+
+        for i in 0..64 {
+            let pt = piece_field[i];
+            if pt != constants::NULL_PIECE {
+                hash ^= SQUARE_PIECE_HASHS[i][pt as usize];
+            }
+        }
+
+        hash ^= ep_square as u64 * EP_HASH;
+
+        if wqc {
+            hash ^= WQC_HASH;
+        }
+        if wkc {
+            hash ^= WKC_HASH;
+        }
+        if bqc {
+            hash ^= BQC_HASH;
+        }
+        if bkc {
+            hash ^= BKC_HASH;
+        }
+
+        if whites_turn {
+            hash ^= TURN_HASH;
+        }
+
+        return  hash;
+    }
+
+    pub fn update_hash(&mut self, m: ChessMove, old_ep_square: u8,  wqc: bool, wkc: bool, bqc: bool, bkc: bool) {
+        self.value ^= SQUARE_PIECE_HASHS[m.start_square as usize][m.move_piece_type as usize];
+        self.value ^= SQUARE_PIECE_HASHS[m.target_square as usize][m.move_piece_type as usize];
+
+        if m.capture_piece_type != constants::NULL_PIECE {
+            self.value ^= SQUARE_PIECE_HASHS[m.target_square as usize][m.capture_piece_type as usize];
+        }
+
+        if (m.start_square == constants::A1 || m.target_square == constants::A1) && wqc {
+            self.value ^= WQC_HASH;
+        }
+        if (m.start_square == constants::H1 || m.target_square == constants::H1) && wkc {
+            self.value ^= WKC_HASH;
+        }
+        if (m.start_square == constants::A8 || m.target_square == constants::A8) && bqc {
+            self.value ^= BQC_HASH;
+        }
+        if (m.start_square == constants::H8 || m.target_square == constants::H8) && bkc {
+            self.value ^= BKC_HASH;
+        }
+
+        self.value ^= TURN_HASH;
+
+        self.value ^= old_ep_square as u64 * EP_HASH;
+
+        let pawn_direction: i32 = if m.is_white_move() { 1 } else { -1 };
+        let mut ep = 0;
+        //double pawn move
+        if m.move_piece_type >> 1 == constants::PAWN && m.start_square.abs_diff(m.target_square) == 16 {
+            ep = (m.target_square as i32 - pawn_direction * 8) as u8;
+            //println!("Found ep square {}", self.en_passant_square);
+        }
+        else {
+            ep = constants::NO_SQUARE;
+        }
+
+        self.value ^= ep as u64 * EP_HASH;
+    }
+}

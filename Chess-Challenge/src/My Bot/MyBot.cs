@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using static System.Math;
@@ -349,30 +350,33 @@ public class MyBot : IChessBot
 	{
 		//List<string> fens = new List<string>();
 		string s = "";
-		const int MAX_DEPTH = 1;
+
+		ulong counter = 0;
+		Stopwatch sw = Stopwatch.StartNew();
+		const int MAX_DEPTH = 5;
 		DFS(MAX_DEPTH);
 
-
-
-		//File.WriteAllLines("kek.txt", fens);
-        Console.WriteLine(s);
-        Console.WriteLine("Done");
+        //File.WriteAllLines("kek.txt", fens);
+        //Console.WriteLine(s);
+        Console.WriteLine(sw.ElapsedMilliseconds);
+        Console.WriteLine("Counter : " + counter);
 
 
         void DFS(int depthLeft)
 		{
 			var list = board.GetLegalMoves();
-			Array.Sort(list, (x, y) => x.ToString().CompareTo(y.ToString()));
+			//Array.Sort(list, (x, y) => x.ToString().CompareTo(y.ToString()));
 
-			string prefix = new string('\t', MAX_DEPTH - depthLeft);
+			//string prefix = new string('\t', MAX_DEPTH - depthLeft);
 
 			if(depthLeft == 0)
 			{
-				s += prefix + list.Length + "[" + string.Join(" ", list) + " ]\n";
+				//s += prefix + list.Length + "[" + string.Join(" ", list) + " ]\n";
+				counter++;
 				return;
 			}
 
-			s += prefix + list.Length + "[\n";
+			//s += prefix + list.Length + "[\n";
 			foreach(Move m in list)
 			{
 				//if (depthLeft == 1 && !m.IsCastles) {
@@ -386,13 +390,13 @@ public class MyBot : IChessBot
 					//fens.Add(board.GetFenString().Split(" ")[0]);
 					//Console.WriteLine(board.GetFenString().Split(" ")[0]);
 				}
-				s += prefix + "\t" + m.ToString();
+				//s += prefix + "\t" + m.ToString();
 				DFS(depthLeft - 1);
 
 				board.UndoMove(m);
 			}
 
-			s += prefix + "]\n";
+			//s += prefix + "]\n";
 		}
 	}
 }

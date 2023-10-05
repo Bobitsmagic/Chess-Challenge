@@ -49,7 +49,7 @@ impl UCIMove {
             PROMOTE_TO_KNIGHT_FLAG => constants::KNIGHT,
             PROMOTE_TO_BISHOP_FLAG => constants::BISHOP,
             PROMOTE_TO_QUEEN_FLAG => constants::QUEEN,
-            _ => constants::EMPTY
+            _ => constants::NULL_PIECE
         }
     }
 }

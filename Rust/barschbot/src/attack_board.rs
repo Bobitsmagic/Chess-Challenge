@@ -1,6 +1,6 @@
 use std::cmp;
 
-use crate::constants;
+use crate::{constants, chess_move::ChessMove};
 
 #[derive(Clone, Copy)]
 struct PieceList {
@@ -19,7 +19,7 @@ const SLIDING_DIRECTIONS: [&[(i8, i8)]; 3] = [
 
 impl PieceList {
     pub fn empty() -> Self {
-        return PieceList { count: 0, is_free: u16::MAX, types: [constants::EMPTY; 16], map: [255; 16], field:  [255; 64]  }
+        return PieceList { count: 0, is_free: u16::MAX, types: [constants::NULL_PIECE; 16], map: [255; 16], field:  [255; 64]  }
     }
 
     pub fn add_new_piece(&mut self, piece: u8, square: u8) -> u8 {
@@ -44,7 +44,7 @@ impl PieceList {
 
 
         self.field[square as usize] = 255;
-        self.types[index as usize] = constants::EMPTY;
+        self.types[index as usize] = constants::NULL_PIECE;
         self.map[index as usize] = 255;
         self.count -= 1;
 
@@ -82,7 +82,7 @@ impl AttackBoard {
 
     pub fn add_at_square(&mut self, square: u8, piece_type: u8, piece_field: &[u8; 64]) {
         debug_assert!(square < 64);
-        debug_assert!(piece_type != constants::EMPTY);
+        debug_assert!(piece_type != constants::NULL_PIECE);
         
         //add to field
         let is_white = (piece_type & 1) == 0;
@@ -143,7 +143,7 @@ impl AttackBoard {
                         target_field[target_square as usize] |= flag;
                         //println!("Target field: {:?}", target_field);
                             
-                        if piece_field[target_square as usize] != constants::EMPTY{
+                        if piece_field[target_square as usize] != constants::NULL_PIECE{
                             break;
                         }
 
@@ -218,7 +218,7 @@ impl AttackBoard {
     }
     
     //[TODO] unblock
-    pub fn remove_at_square(&mut self, square: u8, piece_field: &[u8; 64]) {
+    pub fn remove_at_square(&mut self, square: u8, piece_field: &[u8; 64]) -> u8 {
         debug_assert!(square < 64);
 
         let is_white = piece_field[square as usize] & 1 == 0;
@@ -281,7 +281,7 @@ impl AttackBoard {
                         
                         target_field[target_square as usize] &= !flag;
                             
-                        if piece_field[target_square as usize] != constants::EMPTY {
+                        if piece_field[target_square as usize] != constants::NULL_PIECE {
                             break;
                         }
 
@@ -301,6 +301,8 @@ impl AttackBoard {
         //updates all attackers
         unblock_targets(self.white_piece_list, &mut self.white_targets, square, piece_field);
         unblock_targets(self.black_piece_list, &mut self.black_targets, square, piece_field);
+
+        return piece_type;
 
         fn unblock_targets(piece_list: PieceList, targets: &mut [u16; 64], block_square: u8, piece_field: &[u8; 64]) {
             let block_x = block_square % 8;
@@ -342,7 +344,7 @@ impl AttackBoard {
                                 
                                 targets[target_square as usize] |= flag;
                                 
-                                if piece_field[target_square as usize] != constants::EMPTY {
+                                if piece_field[target_square as usize] != constants::NULL_PIECE {
                                     break;
                                 }
 
@@ -393,6 +395,32 @@ impl AttackBoard {
             return self.black_targets[square as usize] != 0; 
         }
     }
+
+    pub fn square_attack_count(&self, whites_turn: bool, square: u8) -> u32 {
+        if whites_turn {
+            return self.white_targets[square as usize].count_ones();
+        }
+        else {
+            return self.black_targets[square as usize].count_ones(); 
+        }
+    }
+
+    //For legality check only !!!!!!!! does not work on castles
+    pub fn make_move_for_legallity_check(&mut self, m: ChessMove, piece_field: &[u8; 64]) {
+        if m.is_en_passant {
+            let pawn_direction: i32 = if m.is_white_move() { 1 } else { -1 };
+            self.remove_at_square((m.target_square as i8 - pawn_direction as i8 * 8) as u8, piece_field);
+        }
+        else { //Normal move
+            if m.is_capture() {
+                self.remove_at_square(m.target_square, piece_field);
+            }
+        }
+
+        let pt = self.remove_at_square(m.start_square, piece_field);
+        self.add_at_square(m.target_square, pt, piece_field);
+    }
+
 
     pub fn print_square_attacker(&self, square: u8, piece_type: u8) {
         let is_white = piece_type & 1 == 0;

@@ -10,7 +10,7 @@ impl PieceList {
     }
 
     pub fn count(&self) -> u8 {
-        return self.piece_count;
+        return self.piece_count as u8;
     }
 
     pub fn add_at_square(&mut self, square: u8, map: &mut [u8; 64]) {
