@@ -58,6 +58,8 @@ public class MyBot : IChessBot
 
 	public Move Think(Board board, Timer timer)
 	{
+		BitboardHelper.VisualizeBitboard(PAWN_CENTER_ATTACK_WHITE);
+
 		Kek(board);
 
 		Dictionary<ulong, int> evalTable = new();

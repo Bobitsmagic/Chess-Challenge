@@ -17,8 +17,8 @@ pub struct Game {
     
     moves_generated: bool,
     cached_moves: ArrayVec<ChessMove, 200>,
-    white_pawns_bitboard: u64,
-    black_pawns_bitboard: u64,
+    pub white_pawns_bitboard: u64,
+    pub black_pawns_bitboard: u64,
 }
 
 
@@ -123,9 +123,6 @@ impl  Game {
             constants::BLACK_PAWN => bitboard_helper::toggle_bit(&mut self.black_pawns_bitboard, m.start_square),
             _ => ()
         }
-
-
-        
     }
 
     pub fn undo_move(&mut self) {

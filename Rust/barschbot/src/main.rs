@@ -24,10 +24,10 @@ fn main() {
     //let mut b: Board = Board::start_position();
     //Benchmark fen
     //let mut b: Board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
-    let mut game: Game = Game::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    //let mut game: Game = Game::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
 
-    
-    let (m, value) = barsch_bot::negation_max(&mut game, 4);
+    let mut game: Game = Game::from_fen("rnbqkb1r/ppp2ppp/5n2/3pp3/8/4PQP1/PPPP1P1P/RNB1KBNR w KQkq - 0 4");
+    let (m, value) = barsch_bot::iterative_deepening(&mut game, 1);
     print!("Best move: ");
     m.print();
     println!(" -> {}", value);
