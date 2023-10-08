@@ -17,8 +17,9 @@ pub struct Game {
     
     moves_generated: bool,
     cached_moves: ArrayVec<ChessMove, 200>,
-    pub white_pawns_bitboard: u64,
-    pub black_pawns_bitboard: u64,
+
+    pub white_pawns_bitboard_stack: Vec<u64>,
+    pub black_pawns_bitboard_stack: Vec<u64>,
 }
 
 
@@ -54,7 +55,7 @@ impl  Game {
         }
 
         return Game { board_history: HashSet::new(), board_stack: Vec::new(), board, dmc_stack, 
-            cached_moves: ArrayVec::new(), moves_generated: false, white_pawns_bitboard, black_pawns_bitboard }
+            cached_moves: ArrayVec::new(), moves_generated: false, white_pawns_bitboard_stack: vec![white_pawns_bitboard], black_pawns_bitboard_stack: vec![black_pawns_bitboard]}
     }
 
     pub fn is_whites_turn(&self) -> bool {
@@ -67,6 +68,13 @@ impl  Game {
 
     pub fn get_board(&self) -> Board {
         return self.board;
+    }
+
+    pub fn white_pawns_bitboard(&self) -> u64 {
+        return  *self.white_pawns_bitboard_stack.last().unwrap();
+    }
+    pub fn black_pawns_bitboard(&self) -> u64 {
+        return  *self.black_pawns_bitboard_stack.last().unwrap();
     }
 
     pub fn make_move(&mut self, m: ChessMove) {
@@ -91,27 +99,29 @@ impl  Game {
         self.moves_generated = false;
 
         let pawn_direction: i32 = if m.is_white_move() { 1 } else { -1 };
+        let mut white_pawns_bitboard = self.white_pawns_bitboard();
+        let mut black_pawns_bitboard = self.black_pawns_bitboard();
         match m.move_piece_type {
             constants::WHITE_PAWN => {
-                bitboard_helper::toggle_bit(&mut self.white_pawns_bitboard, m.start_square);
+                bitboard_helper::toggle_bit(&mut white_pawns_bitboard, m.start_square);
                 
                 if !m.is_promotion() {
-                    bitboard_helper::toggle_bit(&mut self.white_pawns_bitboard, m.target_square);
+                    bitboard_helper::toggle_bit(&mut white_pawns_bitboard, m.target_square);
                 }
 
                 if m.is_en_passant {
-                    bitboard_helper::toggle_bit(&mut self.black_pawns_bitboard, 
+                    bitboard_helper::toggle_bit(&mut black_pawns_bitboard, 
                         (m.target_square as i8 - pawn_direction as i8 * 8) as u8);
                 }
             }
             constants::BLACK_PAWN => {
-                bitboard_helper::toggle_bit(&mut self.black_pawns_bitboard, m.start_square);
+                bitboard_helper::toggle_bit(&mut black_pawns_bitboard, m.start_square);
                 if !m.is_promotion() {
-                    bitboard_helper::toggle_bit(&mut self.black_pawns_bitboard, m.target_square);
+                    bitboard_helper::toggle_bit(&mut black_pawns_bitboard, m.target_square);
                 }
 
                 if m.is_en_passant {
-                    bitboard_helper::toggle_bit(&mut self.white_pawns_bitboard, 
+                    bitboard_helper::toggle_bit(&mut white_pawns_bitboard, 
                         (m.target_square as i8 - pawn_direction as i8 * 8) as u8);
                 }
             }
@@ -119,10 +129,13 @@ impl  Game {
         }
 
         match m.capture_piece_type {
-            constants::WHITE_PAWN => bitboard_helper::toggle_bit(&mut self.white_pawns_bitboard, m.start_square),
-            constants::BLACK_PAWN => bitboard_helper::toggle_bit(&mut self.black_pawns_bitboard, m.start_square),
+            constants::WHITE_PAWN => bitboard_helper::toggle_bit(&mut white_pawns_bitboard, m.start_square),
+            constants::BLACK_PAWN => bitboard_helper::toggle_bit(&mut black_pawns_bitboard, m.start_square),
             _ => ()
         }
+
+        self.white_pawns_bitboard_stack.push(white_pawns_bitboard);
+        self.black_pawns_bitboard_stack.push(black_pawns_bitboard);
     }
 
     pub fn undo_move(&mut self) {
@@ -133,6 +146,9 @@ impl  Game {
         self.board_history.remove(&self.board.get_hash());
 
         self.moves_generated = false;
+
+        self.white_pawns_bitboard_stack.pop();
+        self.black_pawns_bitboard_stack.pop();
     }
 
     pub fn get_legal_moves(&mut self) -> ArrayVec<ChessMove, 200> {
@@ -165,5 +181,4 @@ impl  Game {
 
         return GameState::Undecided;
     }    
-
 }

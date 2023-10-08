@@ -745,6 +745,20 @@ impl Board {
         return list;
     }
 
+    pub fn get_piece_attack_count(&self, square: u8) -> u8 {
+        debug_assert!(self.piece_field[square as usize] != constants::NULL_PIECE);
+
+        return self.attack_board.piece_attack_move_count((self.piece_field[square as usize] & 1) == 0, square);
+    }
+
+    pub fn get_square_attack_count(&self, whites_turn: bool,  square: u8) -> u8 {
+        return self.attack_board.square_attack_count(whites_turn, square);
+    }
+
+    pub fn get_king_square(&self, whites_turn: bool) -> u8 {
+        return if whites_turn {self.white_king_pos } else { self.black_king_pos };
+    }
+
     //does not check castle move square and start square
     pub fn check_move_legality(&self, m: ChessMove) -> bool {
         let mut res = true;

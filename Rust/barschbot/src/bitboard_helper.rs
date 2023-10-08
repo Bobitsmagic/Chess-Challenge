@@ -30,3 +30,26 @@ pub const DOUBLE_PAWN_CENTER_ATTACK_BLACK: u64 = 26491358281728;
 //Pawns that attack 1 center square (c and f pawns)
 pub const PAWN_CENTER_ATTACK_WHITE: u64 = 606339072;
 pub const PAWN_CENTER_ATTACK_BLACK: u64 = 39737037422592;
+
+pub const RANK_MASKS: [u64; 8] = [
+    0xff, 
+    0xff00, 
+    0xff0000, 
+    0xff000000, 
+    0xff00000000, 
+    0xff0000000000,
+    0xff000000000000,
+    0xff00000000000000];
+
+pub fn print_bitboard(value: u64) {
+    for y in (0..8).rev() {
+        print!("{} ", y + 1);
+        for x in 0..8 {
+            print!("{}", 1 & (value >> (x + y * 8)));
+        }
+
+        println!();
+    }
+
+    println!("  abcdefgh");
+}

@@ -3,9 +3,14 @@ use board::Board;
 use chess_move::ChessMove;
 use attack_board::AttackBoard;
 use game::Game;
+use core::time;
+use std::io::{Write, BufRead, BufReader, Read};
+use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::AtomicU64;
 use std::time::{Instant, Duration};
-use std::fs;
+use std::{fs, io, thread};
+use std::str;
+
 mod zoberist_hash;
 
 mod bitboard_helper;
@@ -19,42 +24,73 @@ mod game;
 mod barsch_bot;
 
 fn main() {
-    //benchmark_moves();
-    
-    //let mut b: Board = Board::start_position();
-    //Benchmark fen
-    //let mut b: Board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
-    //let mut game: Game = Game::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    //println!("{:?}", false.cmp(&true));
 
-    let mut game: Game = Game::from_fen("rnbqkb1r/ppp2ppp/5n2/3pp3/8/4PQP1/PPPP1P1P/RNB1KBNR w KQkq - 0 4");
-    let (m, value) = barsch_bot::iterative_deepening(&mut game, 1);
-    print!("Best move: ");
-    m.print();
-    println!(" -> {}", value);
+    //com_frontend();
+//
+    let mut game: Game = Game::from_fen("rnb1k3/8/1pp2q2/p1b3p1/3B2pN/1P2P1Pp/P1P1Q2P/R2N2K1 b q - 0 23");
+    barsch_bot::get_best_move(&mut game);
 
-
-
-    //b.print_attackers();
-    //return;
-    //let mut b: Board = Board::start_position();
-    //let mut b: Board = Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/1B1PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R b KQkq - 1 1");    
-    //let list = b.get_legal_moves();
-    //Board::print_moves(&list);
-
-    //println!("{}", b.get_fen());
-    //Board::print_moves(&b.get_legal_moves());
-    //return;
-    //
-    //let max_depth = 1;
-    //print_tree(b, max_depth, max_depth);
-
-
-    //b.make_move(&b.get_legal_moves()[47]); 
-    //benchmark_moves(b);
-    //benchmark_moves_game(&mut game);
+    //r1bqk2r/2p5/p1pb1p2/2Npp3/3P4/4P1NP/PPP3K1/R2QR3 b kq - 0 19
+    //com_frontend();
 }
 
+fn com_frontend() -> std::io::Result<()> {
+    let mut stream = TcpStream::connect("127.0.0.1:1337")?;
 
+    loop {
+        let mut fen_bytes = [0 as u8; 200];
+        stream.read(&mut fen_bytes)?;
+    
+        //println!("{:?}", fen_bytes);
+    
+        let length = fen_bytes[0];
+
+        let double = fen_bytes[1] == 0;
+        if double {
+            //println!("Loaded another load");
+            stream.read(&mut fen_bytes);
+            
+            //println!("{:?}", fen_bytes);
+        } 
+                
+        let mut v = fen_bytes.to_vec();
+
+        let mut kek = 0;
+        for i in 0..v.len() {
+            if v[i] == 0 {
+                kek = i;
+                break;
+            }
+        }
+
+        if kek as u8 > length {
+            v.remove(0);
+        }
+
+        //println!("v: {:?}", v);
+    
+        let s = str::from_utf8(&v).unwrap();
+    
+        //println!("Recieved [{}]", s);
+        
+        let mut game: Game = Game::from_fen(s);
+        let m = barsch_bot::get_best_move(&mut game);
+        m.print_uci();
+        println!();
+    
+        //let ten_millis = time::Duration::from_millis(500);
+        //thread::sleep(ten_millis);
+        
+        let str = m.get_uci();
+        stream.write_all(&[str.len() as u8; 1]);
+        stream.write_all(str.as_bytes());
+    
+        println!("Done");
+    }
+
+    Ok(())
+}
 
 fn benchmark_moves(b: Board) {
     let mut start = Instant::now();

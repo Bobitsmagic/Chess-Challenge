@@ -19,6 +19,7 @@ namespace ChessChallenge.Example
 
 			return m;
 		}
+
 		public Move SF(Board board, Timer timer)
 		{
 			var p = new Process();

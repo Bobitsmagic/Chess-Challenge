@@ -8,6 +8,7 @@ struct PieceList {
     is_free: u16,
     types: [u8; 16],
     map:   [u8; 16],
+    move_count: [u8; 16],
     field: [u8; 64],
 }
 
@@ -19,7 +20,7 @@ const SLIDING_DIRECTIONS: [&[(i8, i8)]; 3] = [
 
 impl PieceList {
     pub fn empty() -> Self {
-        return PieceList { count: 0, is_free: u16::MAX, types: [constants::NULL_PIECE; 16], map: [255; 16], field:  [255; 64]  }
+        return PieceList { count: 0, is_free: u16::MAX, types: [constants::NULL_PIECE; 16], map: [255; 16], field:  [255; 64], move_count: [0; 16]  }
     }
 
     pub fn add_new_piece(&mut self, piece: u8, square: u8) -> u8 {
@@ -29,6 +30,7 @@ impl PieceList {
         //println!("Adding to piecelist {} at {} index: {}" , constants::PIECE_CHAR[piece as usize], constants::SQUARE_NAME[square as usize], index);
         self.is_free &= !(1_u16 << index);
 
+        self.move_count[index as usize] = 0;
         self.types[index as usize] = piece;
         self.map[index as usize] = square;
         self.field[square as usize] = index;
@@ -46,11 +48,23 @@ impl PieceList {
         self.field[square as usize] = 255;
         self.types[index as usize] = constants::NULL_PIECE;
         self.map[index as usize] = 255;
+        self.move_count[index as usize] = 0;
         self.count -= 1;
 
         self.is_free |= 1_u16 << index;
     }
 
+    pub fn add_to_move_count(&mut self, index: u8, value: u8) {
+        self.move_count[index as usize] += value;
+    }
+
+    pub fn remove_from_move_count(&mut self, index: u8, value: u8) {
+        self.move_count[index as usize] -= value;
+    }
+
+    pub fn get_move_count(&self, square: u8) -> u8 {
+        return self.move_count[self.field[square as usize] as usize];
+    }
     pub fn get_piece_square(&self, index: u8) -> u8 {
         return self.map[index as usize];
     }
@@ -102,11 +116,13 @@ impl AttackBoard {
         //add piece attacks
         match piece_type >> 1 {
             constants::KING => {
+                piece_list.add_to_move_count(index, constants::KING_MOVES[square as usize].len() as u8);
                 for target_square in constants::KING_MOVES[square as usize] {                      
                     target_field[*target_square as usize] |= flag;
                 }
             },
             constants::KNIGHT => {
+                piece_list.add_to_move_count(index, constants::KNIGHT_MOVES[square as usize].len() as u8);
                 for target_square in constants::KNIGHT_MOVES[square as usize] {                      
                     target_field[*target_square as usize] |= flag;
                 }
@@ -142,7 +158,8 @@ impl AttackBoard {
                         
                         target_field[target_square as usize] |= flag;
                         //println!("Target field: {:?}", target_field);
-                            
+                        piece_list.add_to_move_count(index, 1);
+
                         if piece_field[target_square as usize] != constants::NULL_PIECE{
                             break;
                         }
@@ -156,12 +173,12 @@ impl AttackBoard {
         
         //println!("white");
         //updates all attackers
-        block_targets(self.white_piece_list, &mut self.white_targets, square);
+        block_targets(&mut self.white_piece_list, &mut self.white_targets, square, piece_field);
 
         //println!("Black");
-        block_targets(self.black_piece_list, &mut self.black_targets, square);
+        block_targets(&mut self.black_piece_list, &mut self.black_targets, square, piece_field);
 
-        fn block_targets(piece_list: PieceList, targets: &mut [u16; 64], block_square: u8) {
+        fn block_targets(piece_list: &mut PieceList, targets: &mut [u16; 64], block_square: u8, piece_field: &[u8; 64]) {
             let block_x = block_square % 8;
             let block_y = block_square / 8;
     
@@ -206,6 +223,13 @@ impl AttackBoard {
                                 let target_square = tx + ty * 8;
                                 
                                 targets[target_square as usize] &= !flag;
+
+                                piece_list.remove_from_move_count(piece_index, 1);
+
+                                if piece_field[target_square as usize] != constants::NULL_PIECE{
+                                    break;
+                                }
+
                                 //println!("{:?}", targets);
                                 tx += dx;
                                 ty += dy;
@@ -299,12 +323,12 @@ impl AttackBoard {
         //AttackBoard::print_flags(&target_field, flag);
 
         //updates all attackers
-        unblock_targets(self.white_piece_list, &mut self.white_targets, square, piece_field);
-        unblock_targets(self.black_piece_list, &mut self.black_targets, square, piece_field);
+        unblock_targets(&mut self.white_piece_list, &mut self.white_targets, square, piece_field);
+        unblock_targets(&mut self.black_piece_list, &mut self.black_targets, square, piece_field);
 
         return piece_type;
 
-        fn unblock_targets(piece_list: PieceList, targets: &mut [u16; 64], block_square: u8, piece_field: &[u8; 64]) {
+        fn unblock_targets(piece_list: &mut PieceList, targets: &mut [u16; 64], block_square: u8, piece_field: &[u8; 64]) {
             let block_x = block_square % 8;
             let block_y = block_square / 8;
     
@@ -344,6 +368,8 @@ impl AttackBoard {
                                 
                                 targets[target_square as usize] |= flag;
                                 
+                                piece_list.add_to_move_count(piece_index, 1);
+
                                 if piece_field[target_square as usize] != constants::NULL_PIECE {
                                     break;
                                 }
@@ -396,12 +422,21 @@ impl AttackBoard {
         }
     }
 
-    pub fn square_attack_count(&self, whites_turn: bool, square: u8) -> u32 {
+    pub fn square_attack_count(&self, whites_turn: bool, square: u8) -> u8 {
         if whites_turn {
-            return self.white_targets[square as usize].count_ones();
+            return self.white_targets[square as usize].count_ones() as u8;
         }
         else {
-            return self.black_targets[square as usize].count_ones(); 
+            return self.black_targets[square as usize].count_ones() as u8; 
+        }
+    }
+
+    pub fn piece_attack_move_count(&self, is_whites_piece: bool, square: u8) -> u8 {
+        if is_whites_piece {
+            return self.white_piece_list.get_move_count(square);
+        }
+        else {
+            return self.black_piece_list.get_move_count(square);
         }
     }
 

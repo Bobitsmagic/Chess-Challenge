@@ -5,6 +5,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
+using System.Net;
+using System.Text;
 using static System.Math;
 
 public class MyBot : IChessBot
@@ -48,19 +51,66 @@ public class MyBot : IChessBot
 
 	static Comp comp = new();
 
+
+
 	public MyBot()
 	{
 		for(int i = 0; i < bestMoveIndex.Length; i++)
 		{
 			bestMoveIndex[i] = new Dictionary<ulong, int>();
 		}
+
+
+
+	}
+	
+	static TcpListener tcpServer;
+	static TcpClient client;
+	static NetworkStream ns;
+	
+	static MyBot()
+	{
+		tcpServer = new TcpListener(IPAddress.Parse("127.0.0.1"), 1337);
+		tcpServer.Start();
+		client = tcpServer.AcceptTcpClient();
+		Console.WriteLine("Conncted");
+		ns = client.GetStream();
+	}
+
+	public Move BB(Board board, Timer timer)
+	{
+		BinaryReader br = new BinaryReader(ns);
+
+		BinaryWriter bw = new BinaryWriter(ns);
+
+
+		var s = board.GetFenString();
+
+		
+		Console.WriteLine("Sending: [" + s + "]");
+        Console.WriteLine("Length: " + s.Length);
+        //bw.Write(s.Length);
+        bw.Write(s);
+		bw.Flush();
+
+
+		var length = br.ReadByte();
+        Console.WriteLine("Length: " + length);
+        var answer = br.ReadBytes(length);
+		
+		string txt = Encoding.UTF8.GetString(answer);
+		return new Move(txt, board);
 	}
 
 	public Move Think(Board board, Timer timer)
 	{
-		BitboardHelper.VisualizeBitboard(PAWN_CENTER_ATTACK_WHITE);
+		//BitboardHelper.VisualizeBitboard(71776119061217280);
 
-		Kek(board);
+		return BB(board, timer);	
+
+		//BitboardHelper.VisualizeBitboard(PAWN_CENTER_ATTACK_WHITE);
+
+		//Kek(board);
 
 		Dictionary<ulong, int> evalTable = new();
 		long MEM_BEFORE = GC.GetTotalMemory(true); 
