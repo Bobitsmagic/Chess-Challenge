@@ -49,20 +49,20 @@ pub fn piece_type_from_char(char: char) -> ColoredPieceType {
         'P' => ColoredPieceType::WhitePawn,
         'p' => ColoredPieceType::BlackPawn,
 
-        'K' => ColoredPieceType::WhitePawn,
-        'k' => ColoredPieceType::BlackPawn,
+        'N' => ColoredPieceType::WhiteKnight,
+        'n' => ColoredPieceType::BlackKnight,
 
-        'B' => ColoredPieceType::WhitePawn,
-        'b' => ColoredPieceType::BlackPawn,
+        'B' => ColoredPieceType::WhiteBishop,
+        'b' => ColoredPieceType::BlackBishop,
 
-        'R' => ColoredPieceType::WhitePawn,
-        'r' => ColoredPieceType::BlackPawn,
+        'R' => ColoredPieceType::WhiteRook,
+        'r' => ColoredPieceType::BlackRook,
 
-        'Q' => ColoredPieceType::WhitePawn,
-        'q' => ColoredPieceType::BlackPawn,
+        'Q' => ColoredPieceType::WhiteQueen,
+        'q' => ColoredPieceType::BlackQueen,
 
-        'K' => ColoredPieceType::WhitePawn,
-        'k' => ColoredPieceType::BlackPawn,
+        'K' => ColoredPieceType::WhiteKing,
+        'k' => ColoredPieceType::BlackKing,
 
         _ => ColoredPieceType::None
     };
