@@ -22,17 +22,27 @@ mod piece_list;
 mod chess_move;
 mod game;
 mod barsch_bot;
+mod bit_board;
 
 fn main() {
     //println!("{:?}", false.cmp(&true));
 
     //com_frontend();
-//
-    let mut game: Game = Game::from_fen("rnb1k3/8/1pp2q2/p1b3p1/3B2pN/1P2P1Pp/P1P1Q2P/R2N2K1 b q - 0 23");
-    barsch_bot::get_best_move(&mut game);
+//4k3/8/8/2b5/3q4/4P3/4Q3/6K1 w - - 0 24
+    //let mut game: Game = Game::from_fen("rnb1k3/8/1pp2q2/p1b3p1/3B2pN/1P2P1Pp/P1P1Q2P/R2N2K1 b q - 0 23");
+    ////let mut game: Game = Game::from_fen("4k3/8/8/2b5/3q4/4P3/4Q3/6K1 w - - 0 24");
+    //barsch_bot::get_best_move(&mut game);
+
+    //let mut board = Board::from_fen("rnb1k3/8/1pp5/p1b3p1/3q2pN/1P2P1Pp/P1P1Q2P/R2N2K1 w q - 0 24");
+
+    //board.make_move(&ChessMove::new_move(constants::E3, constants::D4, constants::WHITE_PAWN, ))
+
+    //let list = board.get_legal_moves();
+
+    //Board::print_moves(&list);
 
     //r1bqk2r/2p5/p1pb1p2/2Npp3/3P4/4P1NP/PPP3K1/R2QR3 b kq - 0 19
-    //com_frontend();
+    com_frontend();
 }
 
 fn com_frontend() -> std::io::Result<()> {

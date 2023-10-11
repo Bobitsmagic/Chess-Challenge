@@ -1,11 +1,11 @@
-use std::time::Instant;
+use std::{time::Instant, cmp};
 
 use arrayvec::ArrayVec;
 
 use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, board::Board, constants::{BLACK_PAWN, self}, piece_list::{self, PieceList}, bitboard_helper};
 
 const MAX_VALUE: i32 = 2_000_000_000;
-const MAX_DEPTH: u8 = 20;
+const MAX_DEPTH: u8 = 5;
 const MAX_QUIESCENCE_DEPTH: u8 = 10;
 
 pub fn get_best_move(game: &mut Game) -> ChessMove{
@@ -15,17 +15,31 @@ pub fn get_best_move(game: &mut Game) -> ChessMove{
 pub fn iterative_deepening(game: &mut Game, max_depth: u8) -> (ChessMove, i32) {
     let mut start = Instant::now();
 
-    let mut pair: (ChessMove, i32) = (chess_move::NULL_MOVE, 0);
-    for i in 1..(max_depth + 1) {
-        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  i);
+    let mut pair: (ArrayVec<ChessMove, 30>, i32) = (ArrayVec::new(), 0);
+    for md in 1..(max_depth + 1) {
+        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md);
         //pair = negation_max(game, i);
 
         let duration = start.elapsed();
         println!("{:?}", duration);
-        println!("Depth: {} Move: {} Eval: {}", i, pair.0.get_uci(), pair.1);
+        print!("Depth: {} Eval: {} Line: ", md, pair.1);
+
+        let mut list = pair.0.clone();
+        list.reverse();
+        
+        for i in 0..(cmp::min(list.len(), md as usize)) {
+            list[i].print();
+            print!(" ");
+        }
+        print!(" | ");
+        for i in (cmp::min(list.len(), md as usize))..list.len() {
+            list[i].print();
+            print!(" ");
+        }
+        println!();
     }
 
-    return pair;
+    return (pair.0[0], pair.1);
 }
 
 pub fn negation_max(game: &mut Game, depth_left: u8) -> (ChessMove, i32) {
@@ -75,13 +89,13 @@ fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
     });
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) -> (ChessMove, i32) {
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) -> (ArrayVec<ChessMove, 30>, i32) {
     if depth_left == 0 {
         //return (chess_move::NULL_MOVE, static_eval(game));
         return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH);
     }
     
-    let mut best_move = chess_move::NULL_MOVE;
+    let mut best_line = ArrayVec::new();
 
     let mut list = game.get_legal_moves();
 
@@ -91,40 +105,33 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_lef
         
         game.make_move(m);
 
-        //for i in 0..(MAX_DEPTH - depth_left) {
-        //    print!("\t");
-        //}
-        //m.print();
-        //println!();
-
-        let value = -alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1).1;
-
-        //if depth_left == 1 {
-        //    println!(" Value: {}", value);
-        //}
+        let (line, mut value) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1);
 
         game.undo_move();
 
+        value = -value;
+
         if value >= beta {
-            return (m, beta);
+            return (ArrayVec::new(), beta);
         }
 
         if value > alpha {
             alpha = value;
-            best_move = m;
+
+            best_line = line;
+            best_line.push(m);
         }
-        
     }    
 
-    return (best_move, alpha);
+    return (best_line, alpha);
 }
 
 
-pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) -> (ChessMove, i32) {
+pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) -> (ArrayVec<ChessMove, 30>, i32) {
     let stand_pat = static_eval(game);
     
     if stand_pat >= beta {
-        return (chess_move::NULL_MOVE, beta);
+        return (ArrayVec::new(), beta);
     }
 
     //only for quiescence search
@@ -135,11 +142,10 @@ pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) ->
 
     if depth_left == 0 {
         //println!("Could not finish quiescence search");
-        return (chess_move::NULL_MOVE, 
-            stand_pat);
+        return (ArrayVec::new(), stand_pat);
     }
     
-    let mut best_move = chess_move::NULL_MOVE;
+    let mut best_line = ArrayVec::new();
 
     let mut list = game.get_legal_moves();
 
@@ -153,22 +159,24 @@ pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) ->
 
         game.make_move(m);
 
-        let value = -quiescence(game,  -beta, -alpha, depth_left - 1).1;
-
+        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1);
         game.undo_move();
-
+        
+        value = -value;
+        
         if value >= beta {
-            return (m, beta);
+            return (ArrayVec::new(), beta);
         }
 
         if value > alpha {
             alpha = value;
-            best_move = m;
+            best_line = line;
+
+            best_line.push(m);
         }
-        
     }    
 
-    return (best_move, alpha);
+    return (best_line, alpha);
 }
 //                              Pawn, Knight, Bishop, Rook, Queen
 const PIECE_VALUES: [i32; 6] = [1000, 2800, 3200, 5000, 9000, MAX_VALUE];
