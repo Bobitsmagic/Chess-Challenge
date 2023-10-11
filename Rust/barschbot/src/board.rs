@@ -15,7 +15,7 @@ pub struct Board {
     black_king_castle: bool,
 
     //Pieces
-    pub piece_field: [u8; 64],
+    pub type_field: [u8; 64],
     piece_map: [u8; 64],
     pub piece_lists: [PieceList; 10],
     white_king_pos: u8,
@@ -176,7 +176,7 @@ impl Board {
 
         return Board { whites_turn: true, 
             en_passant_square: constants::NO_SQUARE, castle_move_square: constants::NO_SQUARE, castle_start_square: constants::NO_SQUARE, 
-            piece_field, piece_lists, piece_map, 
+            type_field: piece_field, piece_lists, piece_map, 
             white_queen_castle: false, white_king_castle: false, black_queen_castle: false, black_king_castle: false, 
             white_king_pos: constants::E1, black_king_pos: constants::E8,
             attack_board: AttackBoard::empty(), zoberist_hash: ZoberistHash::new() };
@@ -228,7 +228,7 @@ impl Board {
 
         println!("Loaded FEN {}", fen);
         
-        board.zoberist_hash.recalculate_hash(&board.piece_field, board.whites_turn,
+        board.zoberist_hash.recalculate_hash(&board.type_field, board.whites_turn,
             board.en_passant_square, board.white_queen_castle, board.white_king_castle, board.black_queen_castle, board.black_king_castle);
         
         board.print();
@@ -243,13 +243,13 @@ impl Board {
             for x in 0..8 {
                 let square = x + y * 8;
 
-                if self.piece_field[square as usize] != constants::NULL_PIECE {
+                if self.type_field[square as usize] != constants::NULL_PIECE {
                     if empty_count > 0 {
                         s += &empty_count.to_string();
                         empty_count = 0;
                     }
 
-                    s += &constants::PIECE_CHAR[self.piece_field[square as usize] as usize].to_string();
+                    s += &constants::PIECE_CHAR[self.type_field[square as usize] as usize].to_string();
                 }
                 else {
                     empty_count += 1;
@@ -272,9 +272,9 @@ impl Board {
         debug_assert!(square < 64);
         debug_assert!(piece_type < constants::NULL_PIECE);
 
-        self.piece_field[square as usize] = piece_type;
+        self.type_field[square as usize] = piece_type;
 
-        self.attack_board.add_at_square(square, piece_type, &self.piece_field);
+        self.attack_board.add_at_square(square, piece_type, &self.type_field);
 
         if piece_type == constants::WHITE_KING {
             self.white_king_pos = square;
@@ -291,12 +291,12 @@ impl Board {
     }
     pub fn remove_piece(&mut self, square: u8) {
         debug_assert!(square < 64);
-        let piece = self.piece_field[square as usize];
+        let piece = self.type_field[square as usize];
         debug_assert!(piece < constants::NULL_PIECE);
 
-        self.attack_board.remove_at_square(square, &self.piece_field);
+        self.attack_board.remove_at_square(square, &self.type_field);
 
-        self.piece_field[square as usize] = constants::NULL_PIECE;
+        self.type_field[square as usize] = constants::NULL_PIECE;
 
         if piece == constants::WHITE_KING ||  piece == constants::BLACK_KING {   
             return;
@@ -307,7 +307,7 @@ impl Board {
 
     pub fn move_piece(&mut self, start_square: u8, target_square: u8) {
         debug_assert!(target_square != start_square);
-        let piece_type = self.piece_field[start_square as usize];
+        let piece_type = self.type_field[start_square as usize];
 
         self.remove_piece(start_square);
         self.add_piece(target_square, piece_type);
@@ -445,14 +445,14 @@ impl Board {
             let mut target_square = (start_square as i32 + 8 * pawn_direction) as u8;
 
             //forward move 
-            if  self.piece_field[target_square as usize] == constants::NULL_PIECE {
+            if  self.type_field[target_square as usize] == constants::NULL_PIECE {
                 
                 add_pawn_move(start_square, target_square, move_piece_type, constants::NULL_PIECE, promotion_rank, &mut list);
 
                 target_square = (start_square as i32 + 2 * 8 * pawn_direction) as u8;
 
                 if start_square / 8 == start_rank {
-                    if self.piece_field[target_square as usize] == constants::NULL_PIECE {
+                    if self.type_field[target_square as usize] == constants::NULL_PIECE {
                         list.push(ChessMove::new_move(start_square, target_square, move_piece_type, constants::NULL_PIECE));
                     }
                 }
@@ -461,7 +461,7 @@ impl Board {
             //capture left
             if x > 0 {
                 target_square = (start_square as i32 + 8 * pawn_direction - 1) as u8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
                 if  target_piece_type != constants::NULL_PIECE && target_piece_type & 1 != moving_color || target_square == self.castle_move_square || target_square == self.castle_start_square {
                     add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, &mut list);
                 }
@@ -474,7 +474,7 @@ impl Board {
             //capture right
             if x < 7 {
                 target_square = (start_square as i32 + 8 * pawn_direction + 1) as u8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
                 if  target_piece_type != constants::NULL_PIECE && target_piece_type & 1 != moving_color || target_square == self.castle_move_square || target_square == self.castle_start_square {
                     add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, &mut list);
                 }
@@ -494,7 +494,7 @@ impl Board {
             let start_square = piece_list.get_occupied_square(i);
             
             for target_square in KNIGHT_MOVES[start_square as usize] {              
-                let target_piece_type = self.piece_field[*target_square as usize];
+                let target_piece_type = self.type_field[*target_square as usize];
 
                 if target_piece_type == constants::NULL_PIECE || target_piece_type & 1 != moving_color {
                     list.push(ChessMove::new_move(start_square, *target_square, move_piece_type, target_piece_type))
@@ -523,7 +523,7 @@ impl Board {
             //up right 
             for delta in 1..(cmp::min(7 - x, 7 - y) + 1) {
                 let target_square = start_square + delta * 9;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -533,7 +533,7 @@ impl Board {
             //up left
             for delta in 1..(cmp::min(x, 7 - y) + 1) {
                 let target_square = start_square + delta * 7;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -543,7 +543,7 @@ impl Board {
             //down right
             for delta in 1..(cmp::min(7 - x, y) + 1) {
                 let target_square = start_square - delta * 7;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -553,7 +553,7 @@ impl Board {
             //down left
             for delta in 1..(cmp::min(x, y) + 1) {
                 let target_square = start_square - delta * 9;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -571,7 +571,7 @@ impl Board {
 
             for ty in (y + 1)..8 {
                 let target_square = x + ty * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -580,7 +580,7 @@ impl Board {
             
             for ty in (0..y).rev() {
                 let target_square = x + ty * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -589,7 +589,7 @@ impl Board {
 
             for tx in (x + 1)..8 {
                 let target_square = tx + y * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -598,7 +598,7 @@ impl Board {
             
             for tx in (0..x).rev() {
                 let target_square = tx + y * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -616,7 +616,7 @@ impl Board {
 
             for ty in (y + 1)..8 {
                 let target_square = x + ty * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -625,7 +625,7 @@ impl Board {
             
             for ty in (0..y).rev() {
                 let target_square = x + ty * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -634,7 +634,7 @@ impl Board {
 
             for tx in (x + 1)..8 {
                 let target_square = tx + y * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -643,7 +643,7 @@ impl Board {
             
             for tx in (0..x).rev() {
                 let target_square = tx + y * 8;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -654,7 +654,7 @@ impl Board {
             //up right 
             for delta in 1..(cmp::min(7 - x, 7 - y)  + 1) {
                 let target_square = start_square + delta * 9;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -664,7 +664,7 @@ impl Board {
             //up left
             for delta in 1..(cmp::min(x, 7 - y) + 1) {
                 let target_square = start_square + delta * 7;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -674,7 +674,7 @@ impl Board {
             //down right
             for delta in 1..(cmp::min(7 - x, y) + 1) {
                 let target_square = start_square - delta * 7;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -684,7 +684,7 @@ impl Board {
             //down left
             for delta in 1..(cmp::min(x, y) + 1) {
                 let target_square = start_square - delta * 9;
-                let target_piece_type = self.piece_field[target_square as usize];
+                let target_piece_type = self.type_field[target_square as usize];
 
                 if add_slide_move(start_square, target_square, move_piece_type, target_piece_type, moving_color, &mut list) {
                     break;
@@ -696,7 +696,7 @@ impl Board {
         let king_pos = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
         let moving_king = (constants::WHITE_KING | moving_color);
         for target_square in KING_MOVES[king_pos as usize] {              
-            let target_piece_type = self.piece_field[*target_square as usize];
+            let target_piece_type = self.type_field[*target_square as usize];
 
             if target_piece_type == constants::NULL_PIECE || target_piece_type & 1 != moving_color {
                 list.push(ChessMove::new_move(king_pos, *target_square, moving_king, target_piece_type))
@@ -706,17 +706,17 @@ impl Board {
         if !self.in_check() {
             if self.whites_turn {
                 if self.white_queen_castle {
-                    if self.piece_field[constants::B1 as usize] == constants::NULL_PIECE && 
-                        self.piece_field[constants::C1 as usize] == constants::NULL_PIECE && 
-                        self.piece_field[constants::D1 as usize] == constants::NULL_PIECE && 
+                    if self.type_field[constants::B1 as usize] == constants::NULL_PIECE && 
+                        self.type_field[constants::C1 as usize] == constants::NULL_PIECE && 
+                        self.type_field[constants::D1 as usize] == constants::NULL_PIECE && 
                         !self.attack_board.square_is_attacked(!self.whites_turn, constants::D1) {
                         list.push(ChessMove::new_move(king_pos, constants::C1, moving_king, constants::NULL_PIECE));
                     }
                 }
     
                 if self.white_king_castle {
-                    if self.piece_field[constants::F1 as usize] == constants::NULL_PIECE && 
-                        self.piece_field[constants::G1 as usize] == constants::NULL_PIECE && 
+                    if self.type_field[constants::F1 as usize] == constants::NULL_PIECE && 
+                        self.type_field[constants::G1 as usize] == constants::NULL_PIECE && 
                         !self.attack_board.square_is_attacked(!self.whites_turn, constants::F1) {
                         list.push(ChessMove::new_move(king_pos, constants::G1, moving_king, constants::NULL_PIECE));
                     }
@@ -724,17 +724,17 @@ impl Board {
             }
             else {
                 if self.black_queen_castle {
-                    if self.piece_field[constants::B8 as usize] == constants::NULL_PIECE && 
-                        self.piece_field[constants::C8 as usize] == constants::NULL_PIECE && 
-                        self.piece_field[constants::D8 as usize] == constants::NULL_PIECE && 
+                    if self.type_field[constants::B8 as usize] == constants::NULL_PIECE && 
+                        self.type_field[constants::C8 as usize] == constants::NULL_PIECE && 
+                        self.type_field[constants::D8 as usize] == constants::NULL_PIECE && 
                         !self.attack_board.square_is_attacked(!self.whites_turn, constants::D8) {
                         list.push(ChessMove::new_move(king_pos, constants::C8, moving_king, constants::NULL_PIECE));
                     }
                 }
     
                 if self.black_king_castle {
-                    if self.piece_field[constants::F8 as usize] == constants::NULL_PIECE && 
-                        self.piece_field[constants::G8 as usize] == constants::NULL_PIECE && 
+                    if self.type_field[constants::F8 as usize] == constants::NULL_PIECE && 
+                        self.type_field[constants::G8 as usize] == constants::NULL_PIECE && 
                         !self.attack_board.square_is_attacked(!self.whites_turn, constants::F8) {
                         list.push(ChessMove::new_move(king_pos, constants::G8, moving_king, constants::NULL_PIECE));
                     }
@@ -746,9 +746,9 @@ impl Board {
     }
 
     pub fn get_piece_attack_count(&self, square: u8) -> u8 {
-        debug_assert!(self.piece_field[square as usize] != constants::NULL_PIECE);
+        debug_assert!(self.type_field[square as usize] != constants::NULL_PIECE);
 
-        return self.attack_board.piece_attack_move_count((self.piece_field[square as usize] & 1) == 0, square);
+        return self.attack_board.piece_attack_move_count((self.type_field[square as usize] & 1) == 0, square);
     }
 
     pub fn get_square_attack_count(&self, whites_turn: bool,  square: u8) -> u8 {
@@ -763,7 +763,7 @@ impl Board {
     pub fn check_move_legality(&self, m: ChessMove) -> bool {
         let mut res = true;
         let mut attack_board = self.attack_board.clone();
-        attack_board.make_move_for_legallity_check(m, &self.piece_field);
+        attack_board.make_move_for_legallity_check(m, &self.type_field);
 
         let mut king_square = if self.whites_turn { self.white_king_pos } else { self.black_king_pos };
 
@@ -818,7 +818,7 @@ impl Board {
     pub fn get_piece_color(&self, index: u8) -> u8 {
         debug_assert!(index < 64);
 
-        let piece = self.piece_field[index as usize];
+        let piece = self.type_field[index as usize];
         if  piece == constants::NULL_PIECE {
             return 2;
         }
@@ -833,7 +833,7 @@ impl Board {
         for y in (0..8).rev() {
             print!("{} |", y + 1);
             for x in 0..8 {
-                let p = self.piece_field[x + y * 8];
+                let p = self.type_field[x + y * 8];
                 
                 print!("{} ", PIECE_CHAR[p as usize]);
                 
@@ -874,7 +874,7 @@ impl Board {
 
     pub fn print_attackers(&self) {
         for s in 0..64 {
-            let pt = self.piece_field[s as usize];
+            let pt = self.type_field[s as usize];
             if pt != constants::NULL_PIECE {
                 self.attack_board.print_square_attacker(s, pt);
             }

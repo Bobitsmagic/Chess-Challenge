@@ -1,30 +1,29 @@
-use crate::constants;
+use crate::{constants, bit_board::{Square, ColoredPieceType, self, PieceType}};
 use std::num;
 
 #[derive(Copy, Clone)]
 pub struct ChessMove {
-    pub start_square: u8,
-    pub target_square: u8,
-    pub move_piece_type: u8,
-    pub capture_piece_type: u8,
+    pub start_square: Square,
+    pub target_square: Square,
+    pub move_piece_type: ColoredPieceType,
+    pub capture_piece_type: ColoredPieceType,
     
-    pub promotion_piece_type: u8,
-    pub is_en_passant: bool,
+    pub promotion_piece_type: ColoredPieceType,
 }
 
-pub const NULL_MOVE: ChessMove = ChessMove { start_square: 0, target_square: 0, move_piece_type: 0, capture_piece_type: 0, promotion_piece_type: 0, is_en_passant: false };
+pub const NULL_MOVE: ChessMove = ChessMove { start_square: Square::None, target_square: Square::None, move_piece_type: ColoredPieceType::None, capture_piece_type: ColoredPieceType::None, promotion_piece_type: ColoredPieceType::None };
 
 impl ChessMove {
-    pub fn new_move(start_square: u8, target_square: u8, move_piece_type: u8, target_piece_type: u8) -> Self {
-        return ChessMove { start_square, target_square, move_piece_type, capture_piece_type: target_piece_type, promotion_piece_type: constants::NULL_PIECE, is_en_passant: false }
+    pub fn new_move(start_square: Square, target_square: Square, move_piece_type: ColoredPieceType, target_piece_type: ColoredPieceType) -> Self {
+        return ChessMove { start_square, target_square, move_piece_type, capture_piece_type: target_piece_type, promotion_piece_type: ColoredPieceType::None }
     }
 
-    pub fn new_pawn_move(start_square: u8, target_square: u8, move_piece_type: u8, target_piece_type: u8, promotion_piece_type: u8, is_en_passant: bool) -> Self {
-        return ChessMove { start_square, target_square, move_piece_type, capture_piece_type: target_piece_type, promotion_piece_type, is_en_passant }
+    pub fn new_pawn_move(start_square: Square, target_square: Square, move_piece_type: ColoredPieceType, target_piece_type: ColoredPieceType, promotion_piece_type: ColoredPieceType) -> Self {
+        return ChessMove { start_square, target_square, move_piece_type, capture_piece_type: target_piece_type, promotion_piece_type }
     }
 
     pub fn is_castle(&self) -> bool {
-        return self.move_piece_type >> 1 == constants::KING && self.start_square.abs_diff(self.target_square) == 2 
+        return bit_board::piece_type_from_cpt(self.move_piece_type) == PieceType::King && self.start_square.abs_diff(self.target_square) == 2 
     }
 
     pub fn is_capture(&self) -> bool {

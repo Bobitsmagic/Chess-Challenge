@@ -46,10 +46,10 @@ impl  Game {
 
 
         for i in 0..64  {
-            if board.piece_field[i] == constants::WHITE_PAWN {
+            if board.type_field[i] == constants::WHITE_PAWN {
                 bitboard_helper::toggle_bit(&mut white_pawns_bitboard, i as u8);
             }
-            if board.piece_field[i] == constants::BLACK_PAWN {
+            if board.type_field[i] == constants::BLACK_PAWN {
                 bitboard_helper::toggle_bit(&mut black_pawns_bitboard, i as u8);
             }
         }

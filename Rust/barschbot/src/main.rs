@@ -23,6 +23,9 @@ mod chess_move;
 mod game;
 mod barsch_bot;
 mod bit_board;
+mod piece_type;
+mod colored_piece_type;
+mod square;
 
 fn main() {
     //println!("{:?}", false.cmp(&true));
