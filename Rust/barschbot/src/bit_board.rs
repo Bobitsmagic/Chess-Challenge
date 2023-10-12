@@ -100,6 +100,13 @@ impl BitBoard {
         self.toggle_piece_bitboards(cpt, square);
         self.type_field[square as usize] = ColoredPieceType::None;
     }
+
+    fn move_piece(&mut self, start_square: Square, target_square: Square) {
+        let cpt = self.type_field[start_square as usize];
+        self.remove_piece(start_square);
+        self.place_piece(cpt, target_square);
+    }
+
     pub fn get_king_square(&self, white: bool) -> Square {
         let bitboard = self.kings & if white { self.white_pieces } else { self.black_pieces };
         return Square::from_u8(bitboard.trailing_zeros() as u8);
@@ -152,10 +159,11 @@ impl BitBoard {
         return self.square_is_attacked_by(!self.whites_turn, self.get_king_square(self.whites_turn));
     }
 
-    fn get_legal_moves(&self) -> ArrayVec<ChessMove, 200> {
+    fn get_pseudo_legal_moves(&self) -> ArrayVec<ChessMove, 200> {
         let mut list = ArrayVec::new();
         let moving_color_mask = if self.whites_turn { self.white_pieces } else { self.black_pieces };
         let opponent_mask = if !self.whites_turn { self.white_pieces } else { self.black_pieces };
+        let all_mask = self.white_pieces | self.black_pieces;
         
         //Pawns
         fn add_pawn_move(start_square: Square, target_square: Square, move_piece_type: ColoredPieceType, target_piece_type: ColoredPieceType, promotion_rank: u8, is_white: bool, list: &mut ArrayVec<ChessMove, 200>) {
@@ -292,7 +300,110 @@ impl BitBoard {
             }
         }
 
+        //King moves
+        move_piece_type = ColoredPieceType::from_pt(PieceType::King, self.whites_turn);;
+        let king_square = self.get_king_square(self.whites_turn);
+               
+        for target_index in bitboard_helper::iterate_set_bits(
+            bitboard_helper::KING_ATTACKS[king_square as usize] & !moving_color_mask) {
+
+            let target_square = Square::from_u8(target_index as u8);
+
+            let target_piece_type = self.type_field[target_square as usize];
+
+            list.push(ChessMove::new_move(king_square, target_square, move_piece_type, target_piece_type))
+        }
+        
+        if !self.in_check() {
+            if self.whites_turn {
+                if self.white_queen_castle {
+                    if  bitboard_helper::WHITE_QUEEN_CASTLE_MASK & all_mask == 0 && 
+                        !self.square_is_attacked_by(!self.whites_turn, Square::D1) {
+                        list.push(ChessMove::new_move(king_square, Square::C1, move_piece_type, ColoredPieceType::None));
+                    }
+                }
+    
+                if self.white_king_castle {
+                    if  bitboard_helper::WHITE_KING_CASTLE_MASK & all_mask == 0 && 
+                        !self.square_is_attacked_by(!self.whites_turn, Square::F1) {
+                        list.push(ChessMove::new_move(king_square, Square::G1, move_piece_type, ColoredPieceType::None));
+                    }
+                }
+            }
+            else {
+                if self.black_queen_castle {
+                    if  bitboard_helper::BLACK_QUEEN_CASTLE_MASK & all_mask == 0 && 
+                        !self.square_is_attacked_by(!self.whites_turn, Square::D8) {
+                        list.push(ChessMove::new_move(king_square, Square::C8, move_piece_type, ColoredPieceType::None));
+                    }
+                }
+    
+                if self.black_king_castle {
+                    if  bitboard_helper::BLACK_KING_CASTLE_MASK & all_mask == 0 && 
+                        !self.square_is_attacked_by(!self.whites_turn, Square::F8) {
+                        list.push(ChessMove::new_move(king_square, Square::G8, move_piece_type, ColoredPieceType::None));
+                    }
+                }
+            }
+        }
+        
         
         return list;
+    }
+
+    fn make_move(&mut self, m: ChessMove) {
+        if m.move_piece_type == ColoredPieceType::WhiteKing {
+            self.white_queen_castle = false;
+            self.white_king_castle = false;
+        }
+        
+        if m.move_piece_type == ColoredPieceType::BlackKing {
+            self.black_queen_castle = false;
+            self.black_king_castle = false;
+        }
+        
+        if m.start_square == Square::A1 || m.target_square == Square::A1 {
+            self.white_queen_castle = false;
+        }
+        if m.start_square == Square::H1 || m.target_square == Square::H1 {
+            self.white_king_castle = false;
+        }
+        if m.start_square == Square::A8 || m.target_square == Square::A8 {
+            self.black_queen_castle = false;
+        }
+        if m.start_square == Square::H8 || m.target_square == Square::H8 {
+            self.black_king_castle = false;
+        }
+
+        //Update en passant square
+        let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
+        if PieceType::from_cpt(m.move_piece_type) == PieceType::Pawn && 
+            (m.start_square as u8).abs_diff(m.target_square as u8) == 16 {
+            self.en_passant_square = Square::from_u8((m.target_square as i32 - pawn_direction * 8) as u8);
+        }
+        else {
+            self.en_passant_square = Square::None;
+        }
+
+        //Moves the rooks
+        if m.is_castle() {
+            let king_rank = m.start_square.rank();
+            
+            //left castle
+            if m.start_square as u8 > m.target_square as u8 {
+                self.move_piece(Square::from_u8(0 + king_rank * 8), Square::from_u8(m.target_square as u8 + 1));
+            }
+            //right castle
+            else {
+                self.move_piece(Square::from_u8(7 + king_rank * 8), Square::from_u8(m.target_square as u8 - 1));      
+            }
+        }
+
+        if m.is_direct_capture() && !m.is_en_passant {
+            self.capture_piece(m.start_square, m.target_square);
+        }
+        else {
+            self.move_piece(m.start_square, m.target_square);
+        }
     }
 }

@@ -68,11 +68,11 @@ pub fn negation_max(game: &mut Game, depth_left: u8) -> (ChessMove, i32) {
 
 fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
     list.sort_unstable_by(|a, b| {
-        if a.is_capture() != b.is_capture() {
-            return b.is_capture().cmp(&a.is_capture());
+        if a.is_direct_capture() != b.is_direct_capture() {
+            return b.is_direct_capture().cmp(&a.is_direct_capture());
         }
 
-        if a.is_capture() && b.is_capture() {
+        if a.is_direct_capture() && b.is_direct_capture() {
             return (PIECE_VALUES[(b.capture_piece_type >> 1) as usize] - PIECE_VALUES[(b.move_piece_type >> 1) as usize]).cmp(
                 &(PIECE_VALUES[(a.capture_piece_type >> 1) as usize] - PIECE_VALUES[(a.move_piece_type >> 1) as usize]));
         }
@@ -153,7 +153,7 @@ pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) ->
 
     for m in  list {
         
-        if !m.is_capture() {
+        if !m.is_direct_capture() {
             continue;
         }
 

@@ -1,4 +1,4 @@
-use crate::{constants, bit_board::{Square, ColoredPieceType, self, PieceType}};
+use crate::{constants, bit_board, square::Square, colored_piece_type::ColoredPieceType, piece_type::PieceType};
 use std::num;
 
 #[derive(Copy, Clone)]
@@ -23,26 +23,32 @@ impl ChessMove {
     }
 
     pub fn is_castle(&self) -> bool {
-        return bit_board::piece_type_from_cpt(self.move_piece_type) == PieceType::King && self.start_square.abs_diff(self.target_square) == 2 
+        return PieceType::from_cpt(self.move_piece_type) == PieceType::King && (self.start_square as u8).abs_diff(self.target_square as u8) == 2 
     }
 
-    pub fn is_capture(&self) -> bool {
-        return self.capture_piece_type != constants::NULL_PIECE;
+    pub fn is_direct_capture(&self) -> bool {
+        return self.capture_piece_type != ColoredPieceType::None;
     }
 
     pub fn is_promotion(&self) -> bool {
-        return self.promotion_piece_type != constants::NULL_PIECE;
+        return self.promotion_piece_type != ColoredPieceType::None;
     }
 
     pub fn is_white_move(&self) -> bool {
-        return self.move_piece_type & 1 == 0;
+        return self.move_piece_type.is_white_piece();
+    }
+
+    pub fn is_en_passant(&self) -> bool {
+        return PieceType::from_cpt(self.move_piece_type) == PieceType::Pawn
+            && (self.start_square as u8).abs_diff(self.target_square as u8) % 8 != 0 
+            && self.is_direct_capture();        
     }
 
     pub fn print_uci(&self) {
         print!("{}{}", constants::SQUARE_NAME[self.start_square as usize], constants::SQUARE_NAME[self.target_square as usize]);
         
         if self.is_promotion() {
-            print!("{}", match (self.promotion_piece_type >> 1) {
+            print!("{}", match (PieceType::from_cpt(self.promotion_piece_type)) {
                 constants::KNIGHT => "n",
                 constants::BISHOP => "b",
                 constants::ROOK => "r",

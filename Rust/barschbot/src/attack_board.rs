@@ -447,7 +447,7 @@ impl AttackBoard {
             self.remove_at_square((m.target_square as i8 - pawn_direction as i8 * 8) as u8, piece_field);
         }
         else { //Normal move
-            if m.is_capture() {
+            if m.is_direct_capture() {
                 self.remove_at_square(m.target_square, piece_field);
             }
         }

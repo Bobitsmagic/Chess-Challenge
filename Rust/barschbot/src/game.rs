@@ -83,7 +83,7 @@ impl  Game {
         
         let mut dmc = self.fifty_move_counter();
         dmc += 1;
-        if m.is_capture() || m.move_piece_type >> 1 == constants::PAWN {
+        if m.is_direct_capture() || m.move_piece_type >> 1 == constants::PAWN {
             dmc = 0;
         }
 

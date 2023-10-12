@@ -172,6 +172,10 @@ impl Square {
     pub fn file(&self) -> u8 {
         return (*self) as u8 % 8;
     }
+
+    pub fn bit_board(&self) -> u64 {
+        return 1_u64 << (*self) as u8;
+    }
 }
 
 

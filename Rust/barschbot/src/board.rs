@@ -377,7 +377,7 @@ impl Board {
             self.castle_start_square = constants::NO_SQUARE;
         }
         
-        if m.is_capture() && !m.is_en_passant {
+        if m.is_direct_capture() && !m.is_en_passant {
             self.capture_piece(m.start_square, m.target_square);
         }
         else {
