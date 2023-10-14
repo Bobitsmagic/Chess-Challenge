@@ -77,7 +77,7 @@ impl BitBoard {
             board.en_passant_square = Square::from_str(parts[3]);
         }
 
-        println!("Loaded FEN {}", fen);
+        //println!("Loaded FEN {}", fen);
 
         return board;
     }
