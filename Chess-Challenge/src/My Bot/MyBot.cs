@@ -406,7 +406,7 @@ public class MyBot : IChessBot
 
 		ulong counter = 0;
 		Stopwatch sw = Stopwatch.StartNew();
-		const int MAX_DEPTH = 0;
+		const int MAX_DEPTH = 3;
 		DFS(MAX_DEPTH);
 
         //File.WriteAllLines("kek.txt", fens);

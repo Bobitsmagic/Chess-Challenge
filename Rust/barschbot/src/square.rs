@@ -180,13 +180,17 @@ impl Square {
     }
 
     pub fn print(&self) {
+        print!("{}", self.to_string());
+    }
+
+    pub fn to_string(&self) -> String {
         const COLUMN_CHAR: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
         let index = (*self) as u8;
         let x = index % 8;
         let y = index / 8;
 
-        print!("{}{}", COLUMN_CHAR[x as usize], y + 1);
+        return COLUMN_CHAR[x as usize].to_string() + &(y + 1).to_string();
     }
 }
 

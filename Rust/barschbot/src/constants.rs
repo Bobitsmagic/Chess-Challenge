@@ -27,7 +27,7 @@ pub const BLACK_KING:   u8 = 11;
 
 pub const NULL_PIECE: u8 = 12;
 
-pub const PIECE_CHAR: [char; 21] = ['P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k', ' ', '1', '2', '3','4','5','6','7','8'];
+
 
 pub const MAX_MOVE_COUNT: usize = 200;
 

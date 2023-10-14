@@ -11,6 +11,8 @@ pub enum ColoredPieceType {
     None,
 }
 
+const PIECE_CHAR: [char; 21] = ['P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k', ' ', '1', '2', '3','4','5','6','7','8'];
+
 impl ColoredPieceType {
     pub fn from_char(char: char) -> ColoredPieceType {
         return match char {
@@ -62,5 +64,9 @@ impl ColoredPieceType {
 
     pub fn is_white_piece(&self) -> bool {
         return (*self as u8) & 1 == 0;
+    }
+
+    pub fn get_char(&self) -> &char {
+        return &PIECE_CHAR[*self as usize];
     }
 }

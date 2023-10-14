@@ -17,4 +17,13 @@ impl PieceType {
             ColoredPieceType::None => PieceType::None
         };
     }
+
+    pub fn is_slider(&self) -> bool {
+        return match *self {
+            PieceType::Bishop => true,
+            PieceType::Rook => true,
+            PieceType::Queen => true,
+            _ => false
+        }
+    }
 }

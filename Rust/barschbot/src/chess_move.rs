@@ -70,16 +70,14 @@ impl ChessMove {
             return;
         }
 
-        print!("{}-", constants::PIECE_CHAR[self.move_piece_type as usize]);
+        print!("{}-", self.move_piece_type.get_char());
         self.start_square.print();
         if self.is_direct_capture() {
-            print!("x{}-", constants::PIECE_CHAR[self.capture_piece_type as usize]);
+            print!("x{}-", self.capture_piece_type.get_char());
         }
         self.target_square.print();
         if self.is_en_passant() {
             print!("!");
         }
     }
-
-
 }

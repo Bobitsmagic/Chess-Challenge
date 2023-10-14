@@ -149,11 +149,11 @@ pub fn print_bitboard(value: u64) {
     for y in (0..8).rev() {
         print!("{} ", y + 1);
         for x in 0..8 {
-            print!("{}", 1 & (value >> (x + y * 8)));
+            print!("{} ", 1 & (value >> (x + y * 8)));
         }
 
         println!();
     }
 
-    println!("  abcdefgh");
+    println!("  a b c d e f g h");
 }
