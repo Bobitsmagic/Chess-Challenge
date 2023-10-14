@@ -1,0 +1,69 @@
+benchmark results: 
+
+//bitboard, seperate legallity check (piece count on check)
+
+Depth: 0 Pos: 1 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+63.2µs
+Depth: 1 Pos: 20 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+196.5µs
+Depth: 2 Pos: 400 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+326.1µs
+Depth: 3 Pos: 8902 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+738.3µs
+Depth: 4 Pos: 197281 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+7.915ms
+Depth: 5 Pos: 4865609 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+175.6058ms
+Depth: 6 Pos: 119060324 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+4.6509624s
+Depth: 7 Pos: 3195901860 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+119.1389543s
+
+Depth: 0 Pos: 1 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+53.3µs
+Depth: 1 Pos: 48 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+183.2µs
+Depth: 2 Pos: 2039 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+397.5µs
+Depth: 3 Pos: 97862 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+4.062ms
+Depth: 4 Pos: 4085603 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+162.7774ms
+Depth: 5 Pos: 193690690 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+7.4024712s
+Depth: 6 Pos: 8031647685 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+336.7298049s
+
+//bitboard, seperate legallity check (attack check)
+
+Depth: 0 Pos: 1 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+50µs
+Depth: 1 Pos: 20 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+159.2µs
+Depth: 2 Pos: 400 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+273.8µs
+Depth: 3 Pos: 8902 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+718.1µs
+Depth: 4 Pos: 197281 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+7.8477ms
+Depth: 5 Pos: 4865609 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+193.0805ms
+Depth: 6 Pos: 119060324 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+4.6364406s
+Depth: 7 Pos: 3195901860 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+143.4229928s
+
+Depth: 0 Pos: 1 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+54.3µs
+Depth: 1 Pos: 48 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+196.1µs
+Depth: 2 Pos: 2039 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+481.2µs
+Depth: 3 Pos: 97862 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+4.3548ms
+Depth: 4 Pos: 4085603 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+182.0812ms
+Depth: 5 Pos: 193690690 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+7.8750438s
+Depth: 6 Pos: 8031647685 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
+342.9092869s

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 arrayvec = "0.7.4"
 atomic-counter = "1.0.1"
+backtrace = "0.3.69"
 num = "0.4.1"
 num-derive = "0.4.1"
 num-integer = "0.1.40"

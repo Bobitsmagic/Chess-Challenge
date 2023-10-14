@@ -41,30 +41,17 @@ impl ChessMove {
     pub fn is_en_passant(&self) -> bool {
         return PieceType::from_cpt(self.move_piece_type) == PieceType::Pawn
             && (self.start_square as u8).abs_diff(self.target_square as u8) % 8 != 0 
-            && self.is_direct_capture();        
-    }
-
-    pub fn print_uci(&self) {
-        print!("{}{}", constants::SQUARE_NAME[self.start_square as usize], constants::SQUARE_NAME[self.target_square as usize]);
-        
-        if self.is_promotion() {
-            print!("{}", match (PieceType::from_cpt(self.promotion_piece_type)) {
-                constants::KNIGHT => "n",
-                constants::BISHOP => "b",
-                constants::ROOK => "r",
-                _ => "q",
-            });
-        }
+            && !self.is_direct_capture();        
     }
 
     pub fn get_uci(&self) -> String {
         let mut x = constants::SQUARE_NAME[self.start_square as usize].to_owned() + constants::SQUARE_NAME[self.target_square as usize];
         
         if self.is_promotion() {
-            x += match (self.promotion_piece_type >> 1) {
-                constants::KNIGHT => "n",
-                constants::BISHOP => "b",
-                constants::ROOK => "r",
+            x += match (PieceType::from_cpt(self.promotion_piece_type)) {
+                PieceType::Knight => "n",
+                PieceType::Bishop => "b",
+                PieceType::Rook => "r",
                 _ => "q",
             };
         }
@@ -74,7 +61,7 @@ impl ChessMove {
 
     pub fn print(&self) {
         if self.is_castle() {
-            if (self.target_square < self.start_square) {
+            if (self.target_square as u8) < (self.start_square as u8) {
                 print!("O-O-O");
             }
             else {
@@ -84,22 +71,15 @@ impl ChessMove {
         }
 
         print!("{}-", constants::PIECE_CHAR[self.move_piece_type as usize]);
-        Self::print_square(self.start_square);
-        if self.capture_piece_type != constants::NULL_PIECE {
+        self.start_square.print();
+        if self.is_direct_capture() {
             print!("x{}-", constants::PIECE_CHAR[self.capture_piece_type as usize]);
         }
-        Self::print_square(self.target_square);
-        if self.is_en_passant {
-            print!("!!");
+        self.target_square.print();
+        if self.is_en_passant() {
+            print!("!");
         }
     }
 
-    fn print_square(index: u8) {
-        const COLUMN_CHAR: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
-        let x = index % 8;
-        let y = index / 8;
-
-        print!("{}{}", COLUMN_CHAR[x as usize], y + 1);
-    }
 }

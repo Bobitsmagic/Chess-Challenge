@@ -1,8 +1,7 @@
 #![ allow(unused)]
-use board::Board;
+use bit_board::BitBoard;
 use chess_move::ChessMove;
-use attack_board::AttackBoard;
-use game::Game;
+//use game::Game;
 use core::time;
 use std::io::{Write, BufRead, BufReader, Read};
 use std::net::{TcpListener, TcpStream};
@@ -11,23 +10,25 @@ use std::time::{Instant, Duration};
 use std::{fs, io, thread};
 use std::str;
 
+use crate::square::Square;
+
 mod zoberist_hash;
 
 mod bitboard_helper;
-mod attack_board;
-mod board;
+//mod attack_board;
 mod constants;
-mod uci_move;
 mod piece_list;
 mod chess_move;
-mod game;
-mod barsch_bot;
+//mod game;
+//mod barsch_bot;
 mod bit_board;
 mod piece_type;
 mod colored_piece_type;
 mod square;
 
+use std::env;
 fn main() {
+    env::set_var("RUST_BACKTRACE", "1");
     //println!("{:?}", false.cmp(&true));
 
     //com_frontend();
@@ -38,6 +39,36 @@ fn main() {
 
     //let mut board = Board::from_fen("rnb1k3/8/1pp5/p1b3p1/3q2pN/1P2P1Pp/P1P1Q2P/R2N2K1 w q - 0 24");
 
+    //for i in 0..64 {
+    //    let mut square = Square::from_u8(i);
+    //    square.print();
+    //    println!();
+    //    bitboard_helper::print_bitboard(bitboard_helper::WHITE_PAWN_ATTACKS[i as usize]);
+    //}
+
+    //return;
+    let mut board = BitBoard::start_position();
+    board = BitBoard::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    
+    //board = BitBoard::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/P1N2Q2/1PPBBPpP/R3K2R w KQkq - 0 2");
+    //print_tree(board, 2, 2);
+    benchmark_moves(board);
+    board.print();
+    //board.print_bitboards();
+    let mut list = board.get_legal_moves();
+//
+    BitBoard::print_moves(&list);
+    ////return;
+//
+    //board.make_move(list[9]);
+//
+    //board.print();
+    ////board.print_bitboards();
+//
+    //list = board.get_legal_moves();
+//
+    //BitBoard::print_moves(&list);
+
     //board.make_move(&ChessMove::new_move(constants::E3, constants::D4, constants::WHITE_PAWN, ))
 
     //let list = board.get_legal_moves();
@@ -45,9 +76,12 @@ fn main() {
     //Board::print_moves(&list);
 
     //r1bqk2r/2p5/p1pb1p2/2Npp3/3P4/4P1NP/PPP3K1/R2QR3 b kq - 0 19
-    com_frontend();
+    //com_frontend();
+
+
 }
 
+/* 
 fn com_frontend() -> std::io::Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:1337")?;
 
@@ -104,14 +138,12 @@ fn com_frontend() -> std::io::Result<()> {
 
     Ok(())
 }
+*/
 
-fn benchmark_moves(b: Board) {
+fn benchmark_moves(b: BitBoard) {
     let mut start = Instant::now();
 
-    Board::print_moves(&b.get_legal_moves());
-
     for i in 0..100 {
-
         let mut s = "".to_owned(); 
         let mut res = PerftRes::new();
 
@@ -126,26 +158,27 @@ fn benchmark_moves(b: Board) {
     }
 }
 
-fn benchmark_moves_game(game: &mut Game) {
-    let mut start = Instant::now();
+//fn benchmark_moves_game(game: &mut Game) {
+//    let mut start = Instant::now();
+//
+//    for i in 0..100 {
+//
+//        let mut s = "".to_owned(); 
+//        let mut res = PerftRes::new();
+//
+//        let pair = dfs_game(game, i, &mut res);
+//        //let pair = dfs_fast(b, b.generate_pseudo_legal_moves(), i);
+//        //fs::write("rust.txt", &s).expect("Unable to write file");
+//
+//        print!("Depth: {} ", i);
+//        res.print();
+//        let duration = start.elapsed();
+//        println!("{:?}", duration);
+//    }
+//}
 
-    for i in 0..100 {
 
-        let mut s = "".to_owned(); 
-        let mut res = PerftRes::new();
-
-        let pair = dfs_game(game, i, &mut res);
-        //let pair = dfs_fast(b, b.generate_pseudo_legal_moves(), i);
-        //fs::write("rust.txt", &s).expect("Unable to write file");
-
-        print!("Depth: {} ", i);
-        res.print();
-        let duration = start.elapsed();
-        println!("{:?}", duration);
-    }
-}
-
-fn print_tree(board: Board, depth_left: u8, max_depth: u8) {
+fn print_tree(board: BitBoard, depth_left: u8, max_depth: u8) {
     let mut list = board.get_legal_moves();
     list.sort_unstable_by(|a, b| { return a.get_uci().cmp(&b.get_uci())});
 
@@ -155,7 +188,7 @@ fn print_tree(board: Board, depth_left: u8, max_depth: u8) {
         print!("{}[", list.len());
 
         for m in list {
-            m.print_uci();
+            print!("{}", m.get_uci());
 
             print!(" ");
         }
@@ -170,12 +203,12 @@ fn print_tree(board: Board, depth_left: u8, max_depth: u8) {
 
     for m in list {
         let mut kek = board.clone();
-        kek.make_move(&m);
+        kek.make_move(m.clone());
         
         print_prefix(max_depth - depth_left);
 
         print!("\t");
-        m.print_uci();
+        print!("{}", m.get_uci());
 
         print_tree(kek, depth_left - 1, max_depth);
     }
@@ -209,7 +242,7 @@ impl PerftRes {
     }
 }
 
-fn dfs_board(board: Board, depth_left: u8, res: &mut PerftRes) {
+fn dfs_board(board: BitBoard, depth_left: u8, res: &mut PerftRes) {
     //list.sort_unstable_by(|a, b| { return a.get_uci().cmp(&b.get_uci())});
     if depth_left == 0 {
         res.positions += 1;
@@ -220,13 +253,14 @@ fn dfs_board(board: Board, depth_left: u8, res: &mut PerftRes) {
 
     for m in list {
         let mut kek = board.clone();
-        kek.make_move(&m);
+        kek.make_move(m);
 
         dfs_board(kek, depth_left - 1, res);
     }
     
 }
 
+/* 
 fn dfs_game(game: &mut Game, depth_left: u8, res: &mut PerftRes) {
     if depth_left == 0 {
         res.positions += 1;
@@ -243,11 +277,11 @@ fn dfs_game(game: &mut Game, depth_left: u8, res: &mut PerftRes) {
         game.undo_move();
     }
 }
+*/
 
 pub fn print_int(value: u64, max_digits: u8) {
     let length = value.to_string().len();
-    
-    
+       
     for i in 0..(max_digits as usize - length) {
         print!(" ");
         if (i + length) % 3 == 0 {

@@ -70,43 +70,44 @@ public class MyBot : IChessBot
 	
 	static MyBot()
 	{
-		tcpServer = new TcpListener(IPAddress.Parse("127.0.0.1"), 1337);
-		tcpServer.Start();
-		client = tcpServer.AcceptTcpClient();
-		Console.WriteLine("Conncted");
-		ns = client.GetStream();
+		//tcpServer = new TcpListener(IPAddress.Parse("127.0.0.1"), 1337);
+		//tcpServer.Start();
+		//client = tcpServer.AcceptTcpClient();
+		//Console.WriteLine("Conncted");
+		//ns = client.GetStream();
 	}
 
-	public Move BB(Board board, Timer timer)
-	{
-		BinaryReader br = new BinaryReader(ns);
+	//public Move BB(Board board, Timer timer)
+	//{
+	//	//BinaryReader br = new BinaryReader(ns);
 
-		BinaryWriter bw = new BinaryWriter(ns);
+	//	//BinaryWriter bw = new BinaryWriter(ns);
 
 
-		var s = board.GetFenString();
+	//	//var s = board.GetFenString();
 
 		
-		Console.WriteLine("Sending: [" + s + "]");
-        Console.WriteLine("Length: " + s.Length);
-        //bw.Write(s.Length);
-        bw.Write(s);
-		bw.Flush();
+	//	//Console.WriteLine("Sending: [" + s + "]");
+ // //      Console.WriteLine("Length: " + s.Length);
+ // //      //bw.Write(s.Length);
+ // //      bw.Write(s);
+	//	//bw.Flush();
 
 
-		var length = br.ReadByte();
-        Console.WriteLine("Length: " + length);
-        var answer = br.ReadBytes(length);
+	//	//var length = br.ReadByte();
+ // //      Console.WriteLine("Length: " + length);
+ // //      var answer = br.ReadBytes(length);
 		
-		string txt = Encoding.UTF8.GetString(answer);
-		return new Move(txt, board);
-	}
+	//	//string txt = Encoding.UTF8.GetString(answer);
+	//	//return new Move(txt, board);
+	//}
 
 	public Move Think(Board board, Timer timer)
 	{
+		Kek(board);
 		//BitboardHelper.VisualizeBitboard(71776119061217280);
 
-		return BB(board, timer);	
+		//return BB(board, timer);	
 
 		//BitboardHelper.VisualizeBitboard(PAWN_CENTER_ATTACK_WHITE);
 
@@ -405,36 +406,32 @@ public class MyBot : IChessBot
 
 		ulong counter = 0;
 		Stopwatch sw = Stopwatch.StartNew();
-		const int MAX_DEPTH = 5;
+		const int MAX_DEPTH = 0;
 		DFS(MAX_DEPTH);
 
         //File.WriteAllLines("kek.txt", fens);
-        //Console.WriteLine(s);
-        Console.WriteLine(sw.ElapsedMilliseconds);
-        Console.WriteLine("Counter : " + counter);
+        Console.WriteLine(s);
+        //Console.WriteLine(sw.ElapsedMilliseconds);
+        //Console.WriteLine("Counter : " + counter);
 
 
         void DFS(int depthLeft)
 		{
 			var list = board.GetLegalMoves();
-			//Array.Sort(list, (x, y) => x.ToString().CompareTo(y.ToString()));
+			Array.Sort(list, (x, y) => x.ToString().CompareTo(y.ToString()));
 
-			//string prefix = new string('\t', MAX_DEPTH - depthLeft);
+			string prefix = new string('\t', MAX_DEPTH - depthLeft);
 
 			if(depthLeft == 0)
 			{
-				//s += prefix + list.Length + "[" + string.Join(" ", list) + " ]\n";
+				s += prefix + list.Length + "[" + string.Join(" ", list) + " ]\n";
 				counter++;
 				return;
 			}
 
-			//s += prefix + list.Length + "[\n";
+			s += prefix + list.Length + "[\n";
 			foreach(Move m in list)
 			{
-				//if (depthLeft == 1 && !m.IsCastles) {
-				//	continue;
-				//}
-
 				board.MakeMove(m);
 
 				if (depthLeft == 1)
@@ -442,13 +439,13 @@ public class MyBot : IChessBot
 					//fens.Add(board.GetFenString().Split(" ")[0]);
 					//Console.WriteLine(board.GetFenString().Split(" ")[0]);
 				}
-				//s += prefix + "\t" + m.ToString();
+				s += prefix + "\t" + m.ToString();
 				DFS(depthLeft - 1);
 
 				board.UndoMove(m);
 			}
 
-			//s += prefix + "]\n";
+			s += prefix + "]\n";
 		}
 	}
 }

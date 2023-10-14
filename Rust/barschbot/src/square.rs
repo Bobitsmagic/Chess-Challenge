@@ -1,3 +1,4 @@
+use std::backtrace::Backtrace;
 #[derive(Clone, Copy, PartialEq)]
 pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1, 
@@ -163,7 +164,8 @@ impl Square {
             62 => Square::G8,
             63 => Square::H8,
     
-            _ => panic!("Tried to parse weird square")
+            _ => { println!("Oh no {}", index); panic!("Tried to parse weird square")}
+            
         }
     }
     pub fn rank(&self) -> u8 {
@@ -173,8 +175,18 @@ impl Square {
         return (*self) as u8 % 8;
     }
 
-    pub fn bit_board(&self) -> u64 {
+    pub const fn bit_board(&self) -> u64 {
         return 1_u64 << (*self) as u8;
+    }
+
+    pub fn print(&self) {
+        const COLUMN_CHAR: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        let index = (*self) as u8;
+        let x = index % 8;
+        let y = index / 8;
+
+        print!("{}{}", COLUMN_CHAR[x as usize], y + 1);
     }
 }
 

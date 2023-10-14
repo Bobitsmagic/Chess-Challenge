@@ -1,4 +1,4 @@
-use crate::{constants, chess_move::{self, ChessMove}};
+use crate::{constants, chess_move::{self, ChessMove}, square::Square, colored_piece_type::ColoredPieceType, piece_type::PieceType};
 
 const SQUARE_PIECE_HASHS: [[u64; 12]; 64] = [
 [3039665143350635744, 17092169764834922902, 3925853326203578338, 17354356390057816443, 7472514735885487017, 15392575389892135373, 6651258979722590487, 7954050523632553952, 4091066645749342542, 7367789944430992549, 11178490497920601604, 15053050127913984131],
@@ -128,20 +128,20 @@ impl ZoberistHash {
         self.value ^= SQUARE_PIECE_HASHS[m.start_square as usize][m.move_piece_type as usize];
         self.value ^= SQUARE_PIECE_HASHS[m.target_square as usize][m.move_piece_type as usize];
 
-        if m.capture_piece_type != constants::NULL_PIECE {
+        if m.capture_piece_type != ColoredPieceType::None {
             self.value ^= SQUARE_PIECE_HASHS[m.target_square as usize][m.capture_piece_type as usize];
         }
 
-        if (m.start_square == constants::A1 || m.target_square == constants::A1) && wqc {
+        if (m.start_square == Square::A1 || m.target_square == Square::A1) && wqc {
             self.value ^= WQC_HASH;
         }
-        if (m.start_square == constants::H1 || m.target_square == constants::H1) && wkc {
+        if (m.start_square == Square::H1 || m.target_square == Square::H1) && wkc {
             self.value ^= WKC_HASH;
         }
-        if (m.start_square == constants::A8 || m.target_square == constants::A8) && bqc {
+        if (m.start_square == Square::A8 || m.target_square == Square::A8) && bqc {
             self.value ^= BQC_HASH;
         }
-        if (m.start_square == constants::H8 || m.target_square == constants::H8) && bkc {
+        if (m.start_square == Square::H8 || m.target_square == Square::H8) && bkc {
             self.value ^= BKC_HASH;
         }
 
@@ -152,9 +152,9 @@ impl ZoberistHash {
         let pawn_direction: i32 = if m.is_white_move() { 1 } else { -1 };
         let mut ep = 0;
         //double pawn move
-        if m.move_piece_type >> 1 == constants::PAWN && m.start_square.abs_diff(m.target_square) == 16 {
+        if PieceType::from_cpt(m.move_piece_type) == PieceType::Pawn 
+            &&  (m.start_square as u8).abs_diff(m.target_square as u8) == 16 {
             ep = (m.target_square as i32 - pawn_direction * 8) as u8;
-            //println!("Found ep square {}", self.en_passant_square);
         }
         else {
             ep = constants::NO_SQUARE;

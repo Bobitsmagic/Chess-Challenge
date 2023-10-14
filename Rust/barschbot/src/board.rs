@@ -804,16 +804,7 @@ impl Board {
         return list;
     }
 
-    pub fn print_moves(list: &ArrayVec<ChessMove, 200>){
-        print!("Moves {}[", list.len());
-    
-        for m in list {
-            m.print();  
-            print!(" ");      
-        }
-    
-        println!("]");
-    }
+
  
     pub fn get_piece_color(&self, index: u8) -> u8 {
         debug_assert!(index < 64);

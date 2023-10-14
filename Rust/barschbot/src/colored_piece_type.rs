@@ -39,22 +39,22 @@ impl ColoredPieceType {
     pub fn from_pt(pt: PieceType, white: bool) -> ColoredPieceType {
         return match (pt, white) {
             (PieceType::Pawn, true) => ColoredPieceType::WhitePawn,
-            (PieceType::Pawn, false) => ColoredPieceType::WhitePawn,
+            (PieceType::Pawn, false) => ColoredPieceType::BlackPawn,
 
             (PieceType::Knight, true) => ColoredPieceType::WhiteKnight,
-            (PieceType::Knight, false) => ColoredPieceType::WhiteKnight,
+            (PieceType::Knight, false) => ColoredPieceType::BlackKnight,
 
             (PieceType::Bishop, true) => ColoredPieceType::WhiteBishop,
-            (PieceType::Bishop, false) => ColoredPieceType::WhiteBishop,
+            (PieceType::Bishop, false) => ColoredPieceType::BlackBishop,
 
             (PieceType::Rook, true) => ColoredPieceType::WhiteRook,
-            (PieceType::Rook, false) => ColoredPieceType::WhiteRook,
+            (PieceType::Rook, false) => ColoredPieceType::BlackRook,
 
             (PieceType::Queen, true) => ColoredPieceType::WhiteQueen,
-            (PieceType::Queen, false) => ColoredPieceType::WhiteQueen,
+            (PieceType::Queen, false) => ColoredPieceType::BlackQueen,
 
             (PieceType::King, true) => ColoredPieceType::WhiteKing,
-            (PieceType::King, false) => ColoredPieceType::WhiteKing,
+            (PieceType::King, false) => ColoredPieceType::BlackKing,
 
             _ => ColoredPieceType::None
         }
