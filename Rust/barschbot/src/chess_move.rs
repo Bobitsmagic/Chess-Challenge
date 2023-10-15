@@ -1,7 +1,7 @@
 use crate::{constants, bit_board, square::Square, colored_piece_type::ColoredPieceType, piece_type::PieceType};
 use std::num;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ChessMove {
     pub start_square: Square,
     pub target_square: Square,

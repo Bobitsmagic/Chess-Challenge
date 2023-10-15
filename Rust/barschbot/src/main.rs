@@ -39,22 +39,20 @@ fn main() {
 
     //let mut board = Board::from_fen("rnb1k3/8/1pp5/p1b3p1/3q2pN/1P2P1Pp/P1P1Q2P/R2N2K1 w q - 0 24");
 
-    //for i in 0..64 {
-    //    let mut square = Square::from_u8(i);
-    //    square.print();
-    //    println!();
-    //    bitboard_helper::print_bitboard(bitboard_helper::WHITE_PAWN_ATTACKS[i as usize]);
+    //for i in 0..8 {
+    //    println!("Index: {}", i);
+    //    bitboard_helper::print_bitboard(bitboard_helper::RIGHT_MOVE_MASK[i as usize]);
     //}
 
     
         check_all_perft();
-    return;
+    //return;
     let mut board = BitBoard::start_position();
     //board = BitBoard::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
-    board = BitBoard::from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 ");
+    board = BitBoard::from_fen("8/8/8/1Ppp3r/1KR2p1k/8/4P1P1/8 w - c6");
     
     //print_tree(board, 3, 3);
-    benchmark_moves(board);
+    //benchmark_moves(board);
     board.print();
     //board.print_bitboards();
     let mut list = board.get_legal_moves();

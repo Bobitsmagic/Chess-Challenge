@@ -67,3 +67,121 @@ Depth: 5 Pos: 193690690 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks
 5.3839378s
 Depth: 6 Pos: 8031647685 caps: 0 ep: 0 castles: 0 prom: 0 checks: 0 double checks: 0
 205.5851216s
+
+//Perft
+Checking all fens
+Index: 1
+Depth: 0 -> 1
+Depth: 1 -> 20
+Depth: 2 -> 400
+Depth: 3 -> 8902
+Depth: 4 -> 197281
+Depth: 5 -> 4865609
+Depth: 6 -> 119060324
+Depth: 7 -> 3195901860
+Time: 91.5513966s Ratio: 36264 k boards per second
+Index: 2
+Depth: 0 -> 1
+Depth: 1 -> 48
+Depth: 2 -> 2039
+Depth: 3 -> 97862
+Depth: 4 -> 4085603
+Depth: 5 -> 193690690
+Depth: 6 -> 8031647685
+Time: 221.1581019s Ratio: 37211 k boards per second
+Index: 3
+Depth: 0 -> 1
+Depth: 1 -> 14
+Depth: 2 -> 191
+Depth: 3 -> 2812
+Depth: 4 -> 43238
+Depth: 5 -> 674624
+Depth: 6 -> 11030083
+Depth: 7 -> 178633661
+Depth: 8 -> 3009794393
+Time: 89.0205377s Ratio: 35948 k boards per second
+Index: 4
+Depth: 0 -> 1
+Depth: 1 -> 6
+Depth: 2 -> 264
+Depth: 3 -> 9467
+Depth: 4 -> 422333
+Depth: 5 -> 15833292
+Depth: 6 -> 706045033
+Time: 19.9881329s Ratio: 36137 k boards per second
+Index: 5
+Depth: 0 -> 1
+Depth: 1 -> 44
+Depth: 2 -> 1486
+Depth: 3 -> 62379
+Depth: 4 -> 2103487
+Depth: 5 -> 89941194
+Time: 2.2532351s Ratio: 40882 k boards per second
+Index: 6
+Depth: 0 -> 1
+Depth: 1 -> 46
+Depth: 2 -> 2079
+Depth: 3 -> 89890
+Depth: 4 -> 3894594
+Depth: 5 -> 164075551
+Depth: 6 -> 6923051137
+Time: 182.7890367s Ratio: 38793 k boards per second
+
+//Full bitboard (except ep)
+Checking all fens
+Index: 1
+Depth: 0 -> 1
+Depth: 1 -> 20
+Depth: 2 -> 400
+Depth: 3 -> 8902
+Depth: 4 -> 197281
+Depth: 5 -> 4865609
+Depth: 6 -> 119060324
+Depth: 7 -> 3195901860
+Time: 75.4916039s Ratio: 43979 k boards per second
+Index: 2
+Depth: 0 -> 1
+Depth: 1 -> 48
+Depth: 2 -> 2039
+Depth: 3 -> 97862
+Depth: 4 -> 4085603
+Depth: 5 -> 193690690
+Depth: 6 -> 8031647685
+Time: 199.4117665s Ratio: 41269 k boards per second
+Index: 3
+Depth: 0 -> 1
+Depth: 1 -> 14
+Depth: 2 -> 191
+Depth: 3 -> 2812
+Depth: 4 -> 43238
+Depth: 5 -> 674624
+Depth: 6 -> 11030083
+Depth: 7 -> 178633661
+Depth: 8 -> 3009794393
+Time: 85.8061101s Ratio: 37295 k boards per second
+Index: 4
+Depth: 0 -> 1
+Depth: 1 -> 6
+Depth: 2 -> 264
+Depth: 3 -> 9467
+Depth: 4 -> 422333
+Depth: 5 -> 15833292
+Depth: 6 -> 706045033
+Time: 17.8358379s Ratio: 40499 k boards per second
+Index: 5
+Depth: 0 -> 1
+Depth: 1 -> 44
+Depth: 2 -> 1486
+Depth: 3 -> 62379
+Depth: 4 -> 2103487
+Depth: 5 -> 89941194
+Time: 2.0522354s Ratio: 44887 k boards per second
+Index: 6
+Depth: 0 -> 1
+Depth: 1 -> 46
+Depth: 2 -> 2079
+Depth: 3 -> 89890
+Depth: 4 -> 3894594
+Depth: 5 -> 164075551
+Depth: 6 -> 6923051137
+Time: 163.6544141s Ratio: 43329 k boards per second
