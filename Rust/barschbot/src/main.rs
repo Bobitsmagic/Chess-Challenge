@@ -1,6 +1,8 @@
 #![ allow(unused)]
 use bit_board::BitBoard;
 use chess_move::ChessMove;
+use dataset::EvalBoards;
+use game::Game;
 //use game::Game;
 use core::time;
 use std::io::{Write, BufRead, BufReader, Read};
@@ -19,69 +21,34 @@ mod bitboard_helper;
 mod constants;
 mod piece_list;
 mod chess_move;
-//mod game;
-//mod barsch_bot;
+mod game;
+mod barsch_bot;
 mod bit_board;
 mod piece_type;
 mod colored_piece_type;
 mod square;
+mod dataset;
+mod perceptron;
+mod dolphin_bot;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
-    //println!("{:?}", false.cmp(&true));
+    
+    //perceptron::test_perceptron();
+
+    let kek = EvalBoards::load("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\chessData.csv");
+
+    kek.train_modell();
+
+    //kek.store_data_points();
+    //println!("Error: {}", kek.get_square_error());
+
 
     //com_frontend();
-//4k3/8/8/2b5/3q4/4P3/4Q3/6K1 w - - 0 24
-    //let mut game: Game = Game::from_fen("rnb1k3/8/1pp2q2/p1b3p1/3B2pN/1P2P1Pp/P1P1Q2P/R2N2K1 b q - 0 23");
-    ////let mut game: Game = Game::from_fen("4k3/8/8/2b5/3q4/4P3/4Q3/6K1 w - - 0 24");
-    //barsch_bot::get_best_move(&mut game);
-
-    //let mut board = Board::from_fen("rnb1k3/8/1pp5/p1b3p1/3q2pN/1P2P1Pp/P1P1Q2P/R2N2K1 w q - 0 24");
-
-    //for i in 0..8 {
-    //    println!("Index: {}", i);
-    //    bitboard_helper::print_bitboard(bitboard_helper::RIGHT_MOVE_MASK[i as usize]);
-    //}
-
-    
-        check_all_perft();
-    //return;
-    let mut board = BitBoard::start_position();
-    //board = BitBoard::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
-    board = BitBoard::from_fen("8/8/8/1Ppp3r/1KR2p1k/8/4P1P1/8 w - c6");
-    
-    //print_tree(board, 3, 3);
-    //benchmark_moves(board);
-    board.print();
-    //board.print_bitboards();
-    let mut list = board.get_legal_moves();
-//
-    BitBoard::print_moves(&list);
-    ////return;
-//
-    //board.make_move(list[9]);
-//
-    //board.print();
-    ////board.print_bitboards();
-//
-    //list = board.get_legal_moves();
-//
-    //BitBoard::print_moves(&list);
-
-    //board.make_move(&ChessMove::new_move(constants::E3, constants::D4, constants::WHITE_PAWN, ))
-
-    //let list = board.get_legal_moves();
-
-    //Board::print_moves(&list);
-
-    //r1bqk2r/2p5/p1pb1p2/2Npp3/3P4/4P1NP/PPP3K1/R2QR3 b kq - 0 19
-    //com_frontend();
-
-
 }
 
-/* 
+ 
 fn com_frontend() -> std::io::Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:1337")?;
 
@@ -122,10 +89,9 @@ fn com_frontend() -> std::io::Result<()> {
         //println!("Recieved [{}]", s);
         
         let mut game: Game = Game::from_fen(s);
-        let m = barsch_bot::get_best_move(&mut game);
-        m.print_uci();
-        println!();
-    
+        let m = dolphin_bot::get_best_move(&mut game);
+        println!("{}", m.get_uci());
+            
         //let ten_millis = time::Duration::from_millis(500);
         //thread::sleep(ten_millis);
         
@@ -138,9 +104,9 @@ fn com_frontend() -> std::io::Result<()> {
 
     Ok(())
 }
-*/
 
-fn check_all_perft() {
+
+fn check_all_perft_board() {
     println!("Checking all fens");
     const FENS: [&str; 6] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ", 
@@ -174,6 +140,61 @@ fn check_all_perft() {
             let mut res = PerftRes::new();
             
             let pair = dfs_board(bb, d, &mut res);
+
+            let count = res.positions;    
+            sum += count;
+
+            print!("Depth: {} -> {}", d, count);
+            if count != target_res[d as usize] {
+                println!(" should be: {}", target_res[d as usize]);
+            }
+            else {
+                println!();
+            }
+            
+        }
+
+        let duration = start.elapsed();
+        println!("Time: {:?} Ratio: {} k boards per second", duration, (sum as u128) / duration.as_millis());
+    }
+}
+
+
+fn check_all_perft_game() {
+    println!("Checking all fens");
+    const FENS: [&str; 6] = [
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ", 
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - ",
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8  ",
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 "
+    ];
+
+    const MAX_DEPTHS: [u8; 6] = [8, 7, 9, 7, 6, 7];
+    const RESULTS: [&[u64]; 6] = [
+        &[1, 20, 400, 8902, 197281, 4865609, 119060324, 3195901860, 84998978956],
+        &[1, 48, 2039, 97862, 4085603, 193690690, 8031647685],
+        &[1, 14, 191, 2812, 43238, 674624, 11030083, 178633661, 3009794393],
+        &[1, 6, 264, 9467, 422333, 15833292, 706045033],
+        &[1, 44, 1486, 62379, 2103487, 89941194],
+        &[1, 46, 2079, 89890, 3894594, 164075551, 6923051137],
+    ];
+
+    for i in 0..6 {
+        println!("Index: {}", i + 1);
+        //let bb = BitBoard::from_fen(FENS[i]);
+        let mut game = Game::from_fen(FENS[i]);
+        //bb.print();
+        let target_res = RESULTS[i];
+        let mut sum = 0;
+
+        let mut start = Instant::now();
+        for d in 0..MAX_DEPTHS[i] {
+            
+            let mut res = PerftRes::new();
+            
+            let pair = dfs_game(&mut game, d, &mut res);
 
             let count = res.positions;    
             sum += count;
@@ -313,7 +334,7 @@ fn dfs_board(board: BitBoard, depth_left: u8, res: &mut PerftRes) {
     
 }
 
-/* 
+
 fn dfs_game(game: &mut Game, depth_left: u8, res: &mut PerftRes) {
     if depth_left == 0 {
         res.positions += 1;
@@ -330,7 +351,7 @@ fn dfs_game(game: &mut Game, depth_left: u8, res: &mut PerftRes) {
         game.undo_move();
     }
 }
-*/
+
 
 pub fn print_int(value: u64, max_digits: u8) {
     let length = value.to_string().len();

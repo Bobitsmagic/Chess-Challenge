@@ -1,82 +1,67 @@
-use std::{time::Instant, cmp};
+use std::cmp;
+use std::time::Instant;
 
 use arrayvec::ArrayVec;
+use neuroflow::FeedForward;
+use neuroflow::data::DataSet;
+use neuroflow::io;
+use neuroflow::activators::Type::Tanh;
 
-use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, constants::{BLACK_PAWN, self}, piece_list::{self, PieceList}, bitboard_helper, piece_type::PieceType, colored_piece_type::ColoredPieceType, square::Square, bit_board::BitBoard, perceptron::Perceptron};
+use crate::bit_board::BitBoard;
+use crate::chess_move::ChessMove;
+use crate::colored_piece_type::ColoredPieceType;
+use crate::{constants, bitboard_helper};
+use crate::game::{Game, GameState};
+use crate::piece_type::PieceType;
+use crate::square::Square;
 
 const MAX_VALUE: f64 = 2_000_000_000.0;
-const MAX_DEPTH: u8 = 7;
+const MAX_DEPTH: u8 = 5;
 const MAX_QUIESCENCE_DEPTH: u8 = 5;
 
 pub fn get_best_move(game: &mut Game) -> ChessMove{
-    return iterative_deepening(game, MAX_DEPTH).0; 
+    let path = "C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\target\\release\\Error0.021.flow";
+
+    let mut new_nn: FeedForward = io::load(path).unwrap();
+
+    return iterative_deepening(game, MAX_DEPTH, &mut new_nn).0; 
 }
 
-pub fn iterative_deepening(game: &mut Game, max_depth: u8) -> (ChessMove, f64) {
+pub fn iterative_deepening(game: &mut Game, max_depth: u8, nn: &mut FeedForward) -> (ChessMove, f64) {
     let mut start = Instant::now();
 
     let mut pair: (ArrayVec<ChessMove, 30>, f64) = (ArrayVec::new(), 0.0);
     for md in 1..(max_depth + 1) {
-        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md);
+        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, nn);
         //pair = negation_max(game, i);
 
         let duration = start.elapsed();
-        //println!("{:?}", duration);
-        //print!("Depth: {} Eval: {} Line: ", md, pair.1);
+        println!("{:?}", duration);
+        print!("Depth: {} Eval: {} Line: ", md, pair.1);
 
         let mut list = pair.0.clone();
         list.reverse();
         
-        //for i in 0..(cmp::min(list.len(), md as usize)) {
-        //    list[i].print();
-        //    print!(" ");
-        //}
-        //print!(" | ");
-        //for i in (cmp::min(list.len(), md as usize))..list.len() {
-        //    list[i].print();
-        //    print!(" ");
-        //}
-        //println!();
+        for i in 0..(cmp::min(list.len(), md as usize)) {
+            list[i].print();
+            print!(" ");
+        }
+        print!(" | ");
+        for i in (cmp::min(list.len(), md as usize))..list.len() {
+            list[i].print();
+            print!(" ");
+        }
+        println!();
     }
 
     return (*pair.0.last().unwrap(), pair.1);
 }
 
-pub fn negation_max(game: &mut Game, depth_left: u8) -> (ChessMove, f64) {
-    if depth_left == 0 {
-        return (chess_move::NULL_MOVE, 
-            static_eval(game));
-    }
-    
-    let mut best_value = f64::MIN;
-    let mut best_move = chess_move::NULL_MOVE;
-
-    for m in game.get_legal_moves() {
-        game.make_move(m);
-
-        let value = -negation_max(game,  depth_left - 1).1;
-        if value > best_value {
-            best_value = value;
-            best_move = m;
-        }
-        
-        game.undo_move();
-    }    
-
-    return (best_move, best_value);
-}
-
-pub fn find_quiet_board(game: &mut Game, max_depth: u8) -> BitBoard {
-    let pair = quiescence(game, -MAX_VALUE, MAX_VALUE,  max_depth);
-
-    for m in pair.0 {
-        game.make_move(m);
-    }
-
-    return game.get_board();
-}
-
 fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
+    const PIECE_VALUES: [i32; 6] = [
+        100, 280, 320, 500, 900, 1337_42,
+    ];
+
     list.sort_unstable_by(|a, b| {
         if a.is_direct_capture() != b.is_direct_capture() {
             return b.is_direct_capture().cmp(&a.is_direct_capture());
@@ -102,10 +87,10 @@ fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
     });
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) -> (ArrayVec<ChessMove, 30>, f64) {
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8, nn: &mut  FeedForward) -> (ArrayVec<ChessMove, 30>, f64) {
     if depth_left == 0 {
         //return (chess_move::NULL_MOVE, static_eval(game));
-        return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH);
+        return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH, nn);
     }
     
     let mut best_line = ArrayVec::new();
@@ -118,7 +103,7 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f64, beta: f64, depth_lef
         
         game.make_move(m);
 
-        let (line, mut value) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1);
+        let (line, mut value) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, nn);
 
         game.undo_move();
 
@@ -139,8 +124,8 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f64, beta: f64, depth_lef
     return (best_line, alpha);
 }
 
-pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) -> (ArrayVec<ChessMove, 30>, f64) {
-    let stand_pat = static_eval(game);
+pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8, nn: &mut FeedForward) -> (ArrayVec<ChessMove, 30>, f64) {
+    let stand_pat = static_eval(game, nn);
     
     if stand_pat >= beta {
         return (ArrayVec::new(), beta);
@@ -171,7 +156,7 @@ pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) ->
 
         game.make_move(m);
 
-        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1);
+        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1, nn);
         game.undo_move();
         
         value = -value;
@@ -190,12 +175,6 @@ pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) ->
 
     return (best_line, alpha);
 }
-
-
-//                              Pawn, Knight, Bishop, Rook, Queen
-const PIECE_VALUES: [i32; 6] = [
-    100, 280, 320, 500, 900, 1337_42,
-];
 
 const CHECK_MATE_VALUE: f64 = 1_000_000_000.0;
 
@@ -344,25 +323,60 @@ pub fn get_eval_vector(board: &BitBoard) -> Vec<f64> {
     }
 }
 
-pub fn eval_board(board: &BitBoard) -> f64 {
+const VECTOR_LENGTH: usize = 12 * 64 + 5;
+
+pub fn get_neutral_vector(board: &BitBoard) -> Vec<f64> {
+    let mut list = vec![0.0; VECTOR_LENGTH];
+
+    let type_field = board.type_field;
+
+    for i in 0..64 {
+        let pt = type_field[i];
+
+        if pt != ColoredPieceType::None {
+            list[i * 12 + (pt as usize)] = 1.0;
+        }
+    }
+
+    let offset = 12 * 64;
+    if board.white_queen_castle {
+        list[offset + 0] = 1.0;
+    }
+    if board.white_king_castle {
+        list[offset + 1] = 1.0;
+    }
+    if board.black_queen_castle {
+        list[offset + 2] = 1.0;
+    }
+    if board.black_king_castle {
+        list[offset + 3] = 1.0;
+    }
+
+    if board.is_whites_turn() {
+        list[offset + 4] = 1.0;
+    }
+
+    return list;
+}
+
+
+
+pub fn eval_board(board: &BitBoard, nn: &mut FeedForward) -> f64 {
     let v = get_eval_vector(board);
 
-    let mut sum = 0.0;
-
-    for i in 0..5 {
-        sum += v[i] * PIECE_VALUES[i] as f64;
-    }    
-
-    return sum;
+    return nn.calc(&v)[0];
 }
-pub fn static_eval(game: &mut Game) -> f64 {
+
+pub fn static_eval(game: &mut Game, nn: &mut FeedForward) -> f64 {
     
+    let factor = (if game.is_whites_turn() { 1 } else { -1 }) as f64;
+
     match game.get_game_state() {
-        GameState::Checkmate => return CHECK_MATE_VALUE,
+        GameState::Checkmate => return CHECK_MATE_VALUE * factor,
         GameState::Draw => return 0.0,
         GameState::Undecided => ()
     }
     
-    return eval_board(&game.get_board()) * (if game.is_whites_turn() { 1 } else { -1 }) as f64;
+    return eval_board(&game.get_board(), nn) * -factor;
 }
 

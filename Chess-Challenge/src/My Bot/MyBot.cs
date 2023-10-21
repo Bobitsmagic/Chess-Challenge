@@ -70,46 +70,46 @@ public class MyBot : IChessBot
 	
 	static MyBot()
 	{
-		//tcpServer = new TcpListener(IPAddress.Parse("127.0.0.1"), 1337);
-		//tcpServer.Start();
-		//client = tcpServer.AcceptTcpClient();
-		//Console.WriteLine("Conncted");
-		//ns = client.GetStream();
+		tcpServer = new TcpListener(IPAddress.Parse("127.0.0.1"), 1337);
+		tcpServer.Start();
+		client = tcpServer.AcceptTcpClient();
+		Console.WriteLine("Conncted");
+		ns = client.GetStream();
 	}
 
-	//public Move BB(Board board, Timer timer)
-	//{
-	//	//BinaryReader br = new BinaryReader(ns);
+	public Move BB(Board board, Timer timer)
+	{
+		BinaryReader br = new BinaryReader(ns);
 
-	//	//BinaryWriter bw = new BinaryWriter(ns);
-
-
-	//	//var s = board.GetFenString();
-
-		
-	//	//Console.WriteLine("Sending: [" + s + "]");
- // //      Console.WriteLine("Length: " + s.Length);
- // //      //bw.Write(s.Length);
- // //      bw.Write(s);
-	//	//bw.Flush();
+		BinaryWriter bw = new BinaryWriter(ns);
 
 
-	//	//var length = br.ReadByte();
- // //      Console.WriteLine("Length: " + length);
- // //      var answer = br.ReadBytes(length);
-		
-	//	//string txt = Encoding.UTF8.GetString(answer);
-	//	//return new Move(txt, board);
-	//}
+		var s = board.GetFenString();
+
+
+		Console.WriteLine("Sending: [" + s + "]");
+		Console.WriteLine("Length: " + s.Length);
+		//bw.Write(s.Length);
+		bw.Write(s);
+		bw.Flush();
+
+
+		var length = br.ReadByte();
+		Console.WriteLine("Length: " + length);
+		var answer = br.ReadBytes(length);
+
+		string txt = Encoding.UTF8.GetString(answer);
+		return new Move(txt, board);
+	}
 
 	public Move Think(Board board, Timer timer)
 	{
-		Kek(board);
+		
 		//BitboardHelper.VisualizeBitboard(71776119061217280);
 
-		//return BB(board, timer);	
+		return BB(board, timer);
 
-		//BitboardHelper.VisualizeBitboard(PAWN_CENTER_ATTACK_WHITE);
+		BitboardHelper.VisualizeBitboard(PAWN_CENTER_ATTACK_WHITE);
 
 		//Kek(board);
 

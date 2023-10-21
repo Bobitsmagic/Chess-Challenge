@@ -62,7 +62,31 @@ impl ColoredPieceType {
         }
     }
 
-    pub fn is_white_piece(&self) -> bool {
+    pub fn from_u8(value: u8) -> ColoredPieceType {
+        const ARRAY: [ColoredPieceType; 12] = [
+            ColoredPieceType::WhitePawn, 
+            ColoredPieceType::BlackPawn, 
+
+            ColoredPieceType::WhiteKnight, 
+            ColoredPieceType::BlackKnight, 
+
+            ColoredPieceType::WhiteBishop, 
+            ColoredPieceType::BlackBishop, 
+
+            ColoredPieceType::WhiteRook, 
+            ColoredPieceType::BlackRook, 
+
+            ColoredPieceType::WhiteQueen, 
+            ColoredPieceType::BlackQueen, 
+
+            ColoredPieceType::WhiteKing, 
+            ColoredPieceType::BlackKing, 
+        ];
+
+        return ARRAY[value as usize];
+    }
+
+    pub fn is_white(&self) -> bool {
         return (*self as u8) & 1 == 0;
     }
 

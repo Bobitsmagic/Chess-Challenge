@@ -35,7 +35,7 @@ impl ChessMove {
     }
 
     pub fn is_white_move(&self) -> bool {
-        return self.move_piece_type.is_white_piece();
+        return self.move_piece_type.is_white();
     }
 
     pub fn is_en_passant(&self) -> bool {

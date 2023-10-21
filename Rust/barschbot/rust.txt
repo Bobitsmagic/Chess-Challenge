@@ -185,3 +185,121 @@ Depth: 4 -> 3894594
 Depth: 5 -> 164075551
 Depth: 6 -> 6923051137
 Time: 163.6544141s Ratio: 43329 k boards per second
+
+//Game benchmark
+Checking all fens
+Index: 1
+Depth: 0 -> 1
+Depth: 1 -> 20
+Depth: 2 -> 400
+Depth: 3 -> 8902
+Depth: 4 -> 197281
+Depth: 5 -> 4865609
+Depth: 6 -> 119060324
+Depth: 7 -> 3195901860
+Time: 268.5316281s Ratio: 12363 k boards per second
+Index: 2
+Depth: 0 -> 1
+Depth: 1 -> 48
+Depth: 2 -> 2039
+Depth: 3 -> 97862
+Depth: 4 -> 4085603
+Depth: 5 -> 193690690
+Depth: 6 -> 8031647685
+Time: 654.0152788s Ratio: 12583 k boards per second
+Index: 3
+Depth: 0 -> 1
+Depth: 1 -> 14
+Depth: 2 -> 191
+Depth: 3 -> 2812
+Depth: 4 -> 43238
+Depth: 5 -> 674624
+Depth: 6 -> 11030083
+Depth: 7 -> 178633661
+Depth: 8 -> 3009794393
+Time: 263.0454303s Ratio: 12165 k boards per second
+Index: 4
+Depth: 0 -> 1
+Depth: 1 -> 6
+Depth: 2 -> 264
+Depth: 3 -> 9467
+Depth: 4 -> 422333
+Depth: 5 -> 15833292
+Depth: 6 -> 706045033
+Time: 57.6710311s Ratio: 12524 k boards per second
+Index: 5
+Depth: 0 -> 1
+Depth: 1 -> 44
+Depth: 2 -> 1486
+Depth: 3 -> 62379
+Depth: 4 -> 2103487
+Depth: 5 -> 89941194
+Time: 7.3012624s Ratio: 12615 k boards per second
+Index: 6
+Depth: 0 -> 1
+Depth: 1 -> 46
+Depth: 2 -> 2079
+Depth: 3 -> 89890
+Depth: 4 -> 3894594
+Depth: 5 -> 164075551
+Depth: 6 -> 6923051137
+Time: 530.9122621s Ratio: 13356 k boards per second
+
+//Game 64 bit hash
+Checking all fens
+Index: 1
+Depth: 0 -> 1
+Depth: 1 -> 20
+Depth: 2 -> 400
+Depth: 3 -> 8902
+Depth: 4 -> 197281
+Depth: 5 -> 4865609
+Depth: 6 -> 119060324
+Depth: 7 -> 3195901860
+Time: 248.5804591s Ratio: 13355 k boards per second
+Index: 2
+Depth: 0 -> 1
+Depth: 1 -> 48
+Depth: 2 -> 2039
+Depth: 3 -> 97862
+Depth: 4 -> 4085603
+Depth: 5 -> 193690690
+Depth: 6 -> 8031647685
+Time: 617.4621349s Ratio: 13327 k boards per second
+Index: 3
+Depth: 0 -> 1
+Depth: 1 -> 14
+Depth: 2 -> 191
+Depth: 3 -> 2812
+Depth: 4 -> 43238
+Depth: 5 -> 674624
+Depth: 6 -> 11030083
+Depth: 7 -> 178633661
+Depth: 8 -> 3009794393
+Time: 246.3327985s Ratio: 12991 k boards per second
+Index: 4
+Depth: 0 -> 1
+Depth: 1 -> 6
+Depth: 2 -> 264
+Depth: 3 -> 9467
+Depth: 4 -> 422333
+Depth: 5 -> 15833292
+Depth: 6 -> 706045033
+Time: 52.5865173s Ratio: 13735 k boards per second
+Index: 5
+Depth: 0 -> 1
+Depth: 1 -> 44
+Depth: 2 -> 1486
+Depth: 3 -> 62379
+Depth: 4 -> 2103487
+Depth: 5 -> 89941194
+Time: 6.5370827s Ratio: 14090 k boards per second
+Index: 6
+Depth: 0 -> 1
+Depth: 1 -> 46
+Depth: 2 -> 2079
+Depth: 3 -> 89890
+Depth: 4 -> 3894594
+Depth: 5 -> 164075551
+Depth: 6 -> 6923051137
+Time: 499.8987159s Ratio: 14185 k boards per second

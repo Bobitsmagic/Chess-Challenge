@@ -114,8 +114,8 @@ namespace ChessChallenge.Application
             //fenIndex = 17;
             //board.LoadPosition(TestCases[1].Item1);
 
-            board.LoadPosition("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
-			board.LoadPosition("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - ");
+            //board.LoadPosition("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+			//board.LoadPosition("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - ");
 			
 			//if(botMatchGameIndex % 2 == 0)            
 			//    Console.WriteLine("Expected move: " + TestCases[1].Item2);

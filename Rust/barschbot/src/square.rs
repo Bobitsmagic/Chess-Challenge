@@ -1,4 +1,3 @@
-use std::backtrace::Backtrace;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1, 
@@ -11,6 +10,82 @@ pub enum Square {
     A8, B8, C8, D8, E8, F8, G8, H8, 
     None,
 }
+
+
+const ARRAY: [Square; 65] = [
+    Square::A1,
+    Square::B1,
+    Square::C1,
+    Square::D1,
+    Square::E1,
+    Square::F1,
+    Square::G1,
+    Square::H1,
+    
+    Square::A2,
+    Square::B2,
+    Square::C2,
+    Square::D2,
+    Square::E2,
+    Square::F2,
+    Square::G2,
+    Square::H2,
+    
+    Square::A3,
+    Square::B3,
+    Square::C3,
+    Square::D3,
+    Square::E3,
+    Square::F3,
+    Square::G3,
+    Square::H3,
+    
+    Square::A4,
+    Square::B4,
+    Square::C4,
+    Square::D4,
+    Square::E4,
+    Square::F4,
+    Square::G4,
+    Square::H4,
+    
+    Square::A5,
+    Square::B5,
+    Square::C5,
+    Square::D5,
+    Square::E5,
+    Square::F5,
+    Square::G5,
+    Square::H5,
+    
+    Square::A6,
+    Square::B6,
+    Square::C6,
+    Square::D6,
+    Square::E6,
+    Square::F6,
+    Square::G6,
+    Square::H6,
+
+    Square::A7,
+    Square::B7,
+    Square::C7,
+    Square::D7,
+    Square::E7,
+    Square::F7,
+    Square::G7,
+    Square::H7,
+    
+    Square::A8,
+    Square::B8,
+    Square::C8,
+    Square::D8,
+    Square::E8,
+    Square::F8,
+    Square::G8,
+    Square::H8,
+    Square::None,
+];
 
 impl Square {
     pub fn from_str(str: &str) -> Square {
@@ -91,82 +166,7 @@ impl Square {
         }
     }
     pub fn from_u8(index: u8) -> Square {
-        return match index {
-            0  => Square::A1,
-            1  => Square::B1,
-            2  => Square::C1,
-            3  => Square::D1,
-            4  => Square::E1,
-            5  => Square::F1,
-            6  => Square::G1,
-            7  => Square::H1,
-    
-            8  => Square::A2,
-            9  => Square::B2,
-            10 => Square::C2,
-            11 => Square::D2,
-            12 => Square::E2,
-            13 => Square::F2,
-            14 => Square::G2,
-            15 => Square::H2,
-    
-            16 => Square::A3,
-            17 => Square::B3,
-            18 => Square::C3,
-            19 => Square::D3,
-            20 => Square::E3,
-            21 => Square::F3,
-            22 => Square::G3,
-            23 => Square::H3,
-    
-            24 => Square::A4,
-            25 => Square::B4,
-            26 => Square::C4,
-            27 => Square::D4,
-            28 => Square::E4,
-            29 => Square::F4,
-            30 => Square::G4,
-            31 => Square::H4,
-    
-            32 => Square::A5,
-            33 => Square::B5,
-            34 => Square::C5,
-            35 => Square::D5,
-            36 => Square::E5,
-            37 => Square::F5,
-            38 => Square::G5,
-            39 => Square::H5,
-    
-            40 => Square::A6,
-            41 => Square::B6,
-            42 => Square::C6,
-            43 => Square::D6,
-            44 => Square::E6,
-            45 => Square::F6,
-            46 => Square::G6,
-            47 => Square::H6,
-            
-            48 => Square::A7,
-            49 => Square::B7,
-            50 => Square::C7,
-            51 => Square::D7,
-            52 => Square::E7,
-            53 => Square::F7,
-            54 => Square::G7,
-            55 => Square::H7,
-    
-            56 => Square::A8,
-            57 => Square::B8,
-            58 => Square::C8,
-            59 => Square::D8,
-            60 => Square::E8,
-            61 => Square::F8,
-            62 => Square::G8,
-            63 => Square::H8,
-    
-            _ => { println!("Oh no {}", index); panic!("Tried to parse weird square")}
-            
-        }
+        return ARRAY[index as usize];
     }
     pub fn rank(&self) -> u8 {
         return (*self) as u8 / 8;

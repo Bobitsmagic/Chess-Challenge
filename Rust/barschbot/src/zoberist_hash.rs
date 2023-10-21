@@ -88,16 +88,16 @@ impl ZoberistHash {
         return ZoberistHash { value: 0 }
     }
 
-    pub fn recalculate_hash(&mut self, piece_field: &[u8; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) {
+    pub fn recalculate_hash(&mut self, piece_field: &[ColoredPieceType; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) {
         self.value = ZoberistHash::calculate_hash(piece_field, whites_turn,  ep_square, wqc, wkc, bqc, bkc);
     }
 
-    pub fn calculate_hash(piece_field: &[u8; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) -> u64 {
+    pub fn calculate_hash(piece_field: &[ColoredPieceType; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) -> u64 {
         let mut hash = 0;
 
         for i in 0..64 {
             let pt = piece_field[i];
-            if pt != constants::NULL_PIECE {
+            if pt != ColoredPieceType::None {
                 hash ^= SQUARE_PIECE_HASHS[i][pt as usize];
             }
         }

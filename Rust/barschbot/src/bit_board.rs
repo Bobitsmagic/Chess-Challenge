@@ -10,10 +10,10 @@ use crate::{bitboard_helper::{self, toggle_bit}, chess_move::ChessMove, square::
 pub struct BitBoard {
     whites_turn: bool,
 
-    white_king_castle: bool,
-    black_king_castle: bool,
-    white_queen_castle: bool,
-    black_queen_castle: bool,
+    pub white_king_castle: bool,
+    pub black_king_castle: bool,
+    pub white_queen_castle: bool,
+    pub black_queen_castle: bool,
 
     en_passant_square: Square,
 
@@ -25,7 +25,7 @@ pub struct BitBoard {
     diagonal_sliders: u64,
     kings: u64,
 
-    type_field: [ColoredPieceType; 64]
+    pub type_field: [ColoredPieceType; 64]
 }
 
 impl BitBoard {
@@ -37,6 +37,10 @@ impl BitBoard {
 
     pub fn start_position() -> Self {
         return Self::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - -");
+    }
+
+    pub fn is_whites_turn(&self) -> bool {
+        return self.whites_turn;
     }
 
     pub fn from_fen(fen: &str) -> Self {
@@ -154,6 +158,99 @@ impl BitBoard {
         return s;
     }
 
+    pub fn get_hash_u128(&self) -> u128 {
+        let mut value = 0;
+
+        value ^= self.white_pieces  as u128 * 
+            141516239198093536992276405794421837334;
+
+        value ^= self.black_pieces  as u128 * 
+            173561114907114536576680199187231806622;
+
+        value ^= self.pawns as u128 * 
+            39576602475516466768139669198408355270;
+
+        value ^= self.knights as u128 * 
+            129474745790519887634633993636473024638;
+
+        value ^= self.diagonal_sliders as u128 * 
+            71212900092307071930912856320034040288;
+
+        value ^= self.orthogonal_sliders as u128 * 
+            313175290258635108626169005896513099410;
+
+        value ^= self.kings as u128 * 
+            26952190022079912957214944631943494875;
+
+        let mut flags = 0 as u32;
+
+        flags = (self.whites_turn as u32) << 0;
+        flags = (self.white_queen_castle as u32) << 1;
+        flags = (self.white_king_castle as u32) << 2;
+        flags = (self.black_queen_castle as u32) << 3;
+        flags = (self.black_king_castle as u32) << 4;
+        flags = (self.en_passant_square as u32) << 5;
+
+        value ^= flags as u128 * 
+            248158451196354537687422843279022481987;
+        
+        /*         
+        297087683829488592656505905358005851269
+        255992876604555291044349869126379225239
+        305918099076420451987636982933835964609
+        264122910055416979436301370926171875983
+        155856638156333048870837279920145043734
+        49306992832883477294068497783169164451
+        319386762625185349022885906980108968854
+        78661079691170205034158319609759924241
+        172241145243862772507603641717456209138
+        209284083935763249678617149255109424028
+        65955788389331487485191191890681339416
+        */
+
+
+        return value;
+    }   
+
+    pub fn get_hash_u64(&self) -> u64 {
+        let mut value = 0;
+
+        value ^= self.white_pieces * 
+            3039665143350635744;
+
+        value ^= self.black_pieces * 
+            17092169764834922902;
+
+        value ^= self.pawns * 
+            3925853326203578338;
+
+        value ^= self.knights * 
+            17354356390057816443;
+
+        value ^= self.diagonal_sliders * 
+            7472514735885487017;
+
+        value ^= self.orthogonal_sliders * 
+            15392575389892135373;
+
+        value ^= self.kings * 
+            6651258979722590487;
+
+        let mut flags = 0 as u32;
+
+        flags = (self.whites_turn as u32) << 0;
+        flags = (self.white_queen_castle as u32) << 1;
+        flags = (self.white_king_castle as u32) << 2;
+        flags = (self.black_queen_castle as u32) << 3;
+        flags = (self.black_king_castle as u32) << 4;
+        flags = (self.en_passant_square as u32) << 5;
+
+        value ^= flags as u64 * 
+            7954050523632553952;
+            
+        return value;
+    }
+
     fn toggle_piece_bitboards(&mut self, colored_piece_type: ColoredPieceType, square: Square) {
         match PieceType::from_cpt(colored_piece_type) {
             PieceType::Pawn     => toggle_bit(&mut self.pawns, square),
@@ -166,7 +263,7 @@ impl BitBoard {
             PieceType::None     => panic!("Toggling \"None\" piece")
         }
 
-        if colored_piece_type.is_white_piece() {
+        if colored_piece_type.is_white() {
             toggle_bit(&mut self.white_pieces, square);
         }
         else {
@@ -239,6 +336,36 @@ impl BitBoard {
         return false;
     }
 
+    pub fn get_piece_count(&self, colored_piece_type: ColoredPieceType) -> u32 {
+        let color_mask = if colored_piece_type.is_white() { self.white_pieces } else { self.black_pieces };
+
+        let bits = color_mask & match PieceType::from_cpt(colored_piece_type) {
+            PieceType::Pawn => self.pawns,
+            PieceType::Knight => self.knights,
+            PieceType::Bishop => self.diagonal_sliders & !self.orthogonal_sliders,
+            PieceType::Rook => !self.diagonal_sliders & self.orthogonal_sliders,
+            PieceType::Queen => self.diagonal_sliders & self.orthogonal_sliders,
+            PieceType::King => self.kings,
+            _ => 0
+        };
+
+        return bits.count_ones();
+    }
+
+    pub fn get_piece_bitboard(&self, colored_piece_type: ColoredPieceType) -> u64 {
+        let color_mask = if colored_piece_type.is_white() { self.white_pieces } else { self.black_pieces };
+
+        return color_mask & match PieceType::from_cpt(colored_piece_type) {
+            PieceType::Pawn => self.pawns,
+            PieceType::Knight => self.knights,
+            PieceType::Bishop => self.diagonal_sliders & !self.orthogonal_sliders,
+            PieceType::Rook => !self.diagonal_sliders & self.orthogonal_sliders,
+            PieceType::Queen => self.diagonal_sliders & self.orthogonal_sliders,
+            PieceType::King => self.kings,
+            _ => 0
+        };
+    }
+
     fn square_is_attacked_by_ignore_king(&self, white: bool, target_square: Square) -> bool {
         let color_mask = if white { self.white_pieces } else { self.black_pieces };
 
@@ -277,7 +404,11 @@ impl BitBoard {
         return false;
     }
 
-    fn get_square_attacker(&self, white: bool, target_square: Square) -> ArrayVec<Square, 16> {
+
+    pub fn get_piece_type(&self, target_square: Square) -> ColoredPieceType {
+        return self.type_field[target_square as usize];
+    }
+    pub fn get_square_attacker(&self, white: bool, target_square: Square) -> ArrayVec<Square, 16> {
         let color_mask = if white { self.white_pieces } else { self.black_pieces };
         
         let pawn_mask = if white { bitboard_helper::BLACK_PAWN_ATTACKS[target_square as usize] } else {  bitboard_helper::WHITE_PAWN_ATTACKS[target_square as usize] };
@@ -342,7 +473,7 @@ impl BitBoard {
         return list;
     }
     
-    fn in_check(&self) -> bool {
+    pub fn in_check(&self) -> bool {
         return self.square_is_attacked_by(!self.whites_turn, self.get_king_square(self.whites_turn));
     }
 
@@ -381,10 +512,10 @@ impl BitBoard {
         }
     }
                                             
-    fn get_pseudo_legal_moves(&self) -> ArrayVec<ChessMove, 200> {
+    pub fn get_pseudo_legal_moves(&self, white: bool) -> ArrayVec<ChessMove, 200> {
         let mut list = ArrayVec::new();
-        let moving_color_mask = if self.whites_turn { self.white_pieces } else { self.black_pieces };
-        let opponent_mask = if !self.whites_turn { self.white_pieces } else { self.black_pieces };
+        let moving_color_mask = if white { self.white_pieces } else { self.black_pieces };
+        let opponent_mask = if !white { self.white_pieces } else { self.black_pieces };
         let all_mask = self.white_pieces | self.black_pieces;
         
         //Pawns
@@ -400,10 +531,10 @@ impl BitBoard {
             }
         }
 
-        let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
-        let start_rank: u8 = if self.whites_turn { 1 } else { 6 };
-        let promotion_rank: u8 = if self.whites_turn { 7 } else { 0 };      
-        let mut move_piece_type = ColoredPieceType::from_pt(PieceType::Pawn, self.whites_turn);
+        let pawn_direction: i32 = if white { 1 } else { -1 };
+        let start_rank: u8 = if white { 1 } else { 6 };
+        let promotion_rank: u8 = if white { 7 } else { 0 };      
+        let mut move_piece_type = ColoredPieceType::from_pt(PieceType::Pawn, white);
 
         //[TODO] Use bit boards for move checking/generating
         for index in bitboard_helper::iterate_set_bits(self.pawns & moving_color_mask) {
@@ -416,7 +547,7 @@ impl BitBoard {
             //forward move 
             if  self.type_field[target_square as usize] == ColoredPieceType::None {
                 
-                add_pawn_move(start_square, target_square, move_piece_type, ColoredPieceType::None, promotion_rank, self.whites_turn, &mut list);
+                add_pawn_move(start_square, target_square, move_piece_type, ColoredPieceType::None, promotion_rank, white, &mut list);
                 
                 if start_square.rank() == start_rank {
                     target_square = Square::from_u8((start_square as i32 + 2 * 8 * pawn_direction) as u8);
@@ -430,8 +561,8 @@ impl BitBoard {
             if x > 0 {
                 target_square = Square::from_u8((start_square as i32 + 8 * pawn_direction - 1) as u8);
                 let target_piece_type = self.type_field[target_square as usize];
-                if  target_piece_type != ColoredPieceType::None  &&  target_piece_type.is_white_piece() != self.whites_turn {
-                    add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, self.whites_turn, &mut list);
+                if  target_piece_type != ColoredPieceType::None  &&  target_piece_type.is_white() != white {
+                    add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, white, &mut list);
                 }
 
                 if target_square == self.en_passant_square {
@@ -443,8 +574,8 @@ impl BitBoard {
             if x < 7 {
                 target_square = Square::from_u8((start_square as i32 + 8 * pawn_direction + 1) as u8);
                 let target_piece_type = self.type_field[target_square as usize];
-                if  target_piece_type != ColoredPieceType::None &&  target_piece_type.is_white_piece() != self.whites_turn {
-                    add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, self.whites_turn, &mut list);
+                if  target_piece_type != ColoredPieceType::None &&  target_piece_type.is_white() != white {
+                    add_pawn_move(start_square, target_square, move_piece_type, target_piece_type, promotion_rank, white, &mut list);
                 }
 
                 if target_square == self.en_passant_square {
@@ -454,7 +585,7 @@ impl BitBoard {
         }
 
         //Knight moves
-        move_piece_type = ColoredPieceType::from_pt(PieceType::Knight, self.whites_turn);;
+        move_piece_type = ColoredPieceType::from_pt(PieceType::Knight, white);;
         
         for start_index in bitboard_helper::iterate_set_bits(self.knights & moving_color_mask) {
             let start_square = Square::from_u8(start_index as u8);
@@ -478,7 +609,7 @@ impl BitBoard {
                 let target_square = Square::from_u8((x + y * 8) as u8);
                 let target_piece_type = type_field[target_square as usize];
 
-                if target_piece_type == ColoredPieceType::None || target_piece_type.is_white_piece() != move_piece_type.is_white_piece() {
+                if target_piece_type == ColoredPieceType::None || target_piece_type.is_white() != move_piece_type.is_white() {
                     list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
                 }
 
@@ -504,7 +635,7 @@ impl BitBoard {
             move_piece_type = self.type_field[start_square as usize];
 
             for (dx, dy) in DIAGONAL_DIRECTIONS {
-                add_slide_moves(start_square, move_piece_type, dx, dy, self.type_field, self.whites_turn, &mut list);
+                add_slide_moves(start_square, move_piece_type, dx, dy, self.type_field, white, &mut list);
             }
         }
 
@@ -520,13 +651,13 @@ impl BitBoard {
             move_piece_type = self.type_field[start_square as usize];
 
             for (dx, dy) in ORTHOGONAL_DIRECTIONS {
-                add_slide_moves(start_square, move_piece_type, dx, dy, self.type_field, self.whites_turn, &mut list);
+                add_slide_moves(start_square, move_piece_type, dx, dy, self.type_field, white, &mut list);
             }
         }
 
         //King moves
-        move_piece_type = ColoredPieceType::from_pt(PieceType::King, self.whites_turn);
-        let king_square = self.get_king_square(self.whites_turn);
+        move_piece_type = ColoredPieceType::from_pt(PieceType::King, white);
+        let king_square = self.get_king_square(white);
                
         for target_index in bitboard_helper::iterate_set_bits(
             bitboard_helper::KING_ATTACKS[king_square as usize] & !moving_color_mask) {
@@ -537,40 +668,7 @@ impl BitBoard {
 
             list.push(ChessMove::new_move(king_square, target_square, move_piece_type, target_piece_type))
         }
-    
-        if !self.in_check() {
-            if self.whites_turn {
-                if self.white_queen_castle {
-                    if  bitboard_helper::WHITE_QUEEN_CASTLE_MASK & all_mask == 0 && 
-                        !self.square_is_attacked_by(!self.whites_turn, Square::D1) {
-                        list.push(ChessMove::new_move(king_square, Square::C1, move_piece_type, ColoredPieceType::None));
-                    }
-                }
-    
-                if self.white_king_castle {
-                    if  bitboard_helper::WHITE_KING_CASTLE_MASK & all_mask == 0 && 
-                        !self.square_is_attacked_by(!self.whites_turn, Square::F1) {
-                        list.push(ChessMove::new_move(king_square, Square::G1, move_piece_type, ColoredPieceType::None));
-                    }
-                }
-            }
-            else {
-                if self.black_queen_castle {
-                    if  bitboard_helper::BLACK_QUEEN_CASTLE_MASK & all_mask == 0 && 
-                        !self.square_is_attacked_by(!self.whites_turn, Square::D8) {
-                        list.push(ChessMove::new_move(king_square, Square::C8, move_piece_type, ColoredPieceType::None));
-                    }
-                }
-    
-                if self.black_king_castle {
-                    if  bitboard_helper::BLACK_KING_CASTLE_MASK & all_mask == 0 && 
-                        !self.square_is_attacked_by(!self.whites_turn, Square::F8) {
-                        list.push(ChessMove::new_move(king_square, Square::G8, move_piece_type, ColoredPieceType::None));
-                    }
-                }
-            }
-        }
-               
+                   
         return list;
     }
 
@@ -907,7 +1005,7 @@ impl BitBoard {
                 let target_square = Square::from_u8((x + y * 8) as u8);
                 let target_piece_type = type_field[target_square as usize];
 
-                if target_piece_type == ColoredPieceType::None || target_piece_type.is_white_piece() != move_piece_type.is_white_piece() {
+                if target_piece_type == ColoredPieceType::None || target_piece_type.is_white() != move_piece_type.is_white() {
                     list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
                 }
 
@@ -1030,8 +1128,6 @@ impl BitBoard {
         return list;
     }
 
-
-
     pub fn make_move(&mut self, m: ChessMove) {
         if m.move_piece_type == ColoredPieceType::WhiteKing {
             self.white_queen_castle = false;
@@ -1123,7 +1219,7 @@ impl BitBoard {
         //return gen_list;
 
 
-        let mut list = self.get_pseudo_legal_moves();
+        let mut list = self.get_pseudo_legal_moves(self.whites_turn);
 
         //println!("Pseudo legal moves: ");
         //Self::print_moves(&list);
