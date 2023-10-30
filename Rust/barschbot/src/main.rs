@@ -1,8 +1,9 @@
 #![ allow(unused)]
 use bit_board::BitBoard;
 use chess_move::ChessMove;
-use dataset::EvalBoards;
-use game::Game;
+//use dataset::EvalBoards;
+use game::{Game, GameState};
+use visualizer::App;
 //use game::Game;
 use core::time;
 use std::io::{Write, BufRead, BufReader, Read};
@@ -11,6 +12,12 @@ use std::sync::atomic::AtomicU64;
 use std::time::{Instant, Duration};
 use std::{fs, io, thread};
 use std::str;
+
+use glutin_window::GlutinWindow as Window;
+use opengl_graphics::{GlGraphics, OpenGL};
+use piston::event_loop::{EventSettings, Events};
+use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
+use piston::window::WindowSettings;
 
 use crate::square::Square;
 
@@ -27,84 +34,43 @@ mod bit_board;
 mod piece_type;
 mod colored_piece_type;
 mod square;
-mod dataset;
+//mod dataset;
 mod perceptron;
-mod dolphin_bot;
+mod delphin_bot;
+mod visualizer;
+mod evaluation;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     
-    //perceptron::test_perceptron();
+    let mut app = App::new();
+    let mut game = Game::get_start_position();
+    //game = Game::from_fen("3qkb1r/1pp2p2/n3p2p/1N1pP1p1/r7/2Q1P1B1/PPP2PPP/R3K2R w KQk - 4 16");
 
-    let kek = EvalBoards::load("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\chessData.csv");
-
-    kek.train_modell();
-
-    //kek.store_data_points();
-    //println!("Error: {}", kek.get_square_error());
-
-
-    //com_frontend();
-}
-
- 
-fn com_frontend() -> std::io::Result<()> {
-    let mut stream = TcpStream::connect("127.0.0.1:1337")?;
-
-    loop {
-        let mut fen_bytes = [0 as u8; 200];
-        stream.read(&mut fen_bytes)?;
-    
-        //println!("{:?}", fen_bytes);
-    
-        let length = fen_bytes[0];
-
-        let double = fen_bytes[1] == 0;
-        if double {
-            //println!("Loaded another load");
-            stream.read(&mut fen_bytes);
-            
-            //println!("{:?}", fen_bytes);
-        } 
-                
-        let mut v = fen_bytes.to_vec();
-
-        let mut kek = 0;
-        for i in 0..v.len() {
-            if v[i] == 0 {
-                kek = i;
-                break;
-            }
-        }
-
-        if kek as u8 > length {
-            v.remove(0);
-        }
-
-        //println!("v: {:?}", v);
-    
-        let s = str::from_utf8(&v).unwrap();
-    
-        //println!("Recieved [{}]", s);
-        
-        let mut game: Game = Game::from_fen(s);
-        let m = dolphin_bot::get_best_move(&mut game);
-        println!("{}", m.get_uci());
-            
-        //let ten_millis = time::Duration::from_millis(500);
-        //thread::sleep(ten_millis);
-        
-        let str = m.get_uci();
-        stream.write_all(&[str.len() as u8; 1]);
-        stream.write_all(str.as_bytes());
-    
-        println!("Done");
+    for i in 0..10 {
+        app.render_board(&game, chess_move::NULL_MOVE);    
     }
 
-    Ok(())
-}
+    //app.read_move();
 
+    while game.get_game_state() == GameState::Undecided {
+        let cm = barsch_bot::get_best_move(&mut game);
+        app.read_move();
+
+        game.make_move(cm);
+
+        for i in 0..10 {
+            app.render_board(&game, cm);
+
+        }
+
+    }
+
+    println!("{}", game.to_string());
+
+    println!("Done");
+}
 
 fn check_all_perft_board() {
     println!("Checking all fens");

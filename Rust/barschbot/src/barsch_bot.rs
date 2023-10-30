@@ -1,54 +1,74 @@
-use std::{time::Instant, cmp};
+use std::{time::Instant, cmp, array};
 
 use arrayvec::ArrayVec;
 
-use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, constants::{BLACK_PAWN, self}, piece_list::{self, PieceList}, bitboard_helper, piece_type::PieceType, colored_piece_type::ColoredPieceType, square::Square, bit_board::BitBoard, perceptron::Perceptron};
+use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, constants::{BLACK_PAWN, self}, piece_list::{self, PieceList}, bitboard_helper, piece_type::PieceType, colored_piece_type::ColoredPieceType, square::Square, bit_board::BitBoard, perceptron::Perceptron, 
+    evaluation::*};
 
-const MAX_VALUE: f64 = 2_000_000_000.0;
-const MAX_DEPTH: u8 = 7;
+const MAX_VALUE: i32 = 2_000_000_000;
+const MAX_DEPTH: u8 = 6;
 const MAX_QUIESCENCE_DEPTH: u8 = 5;
 
 pub fn get_best_move(game: &mut Game) -> ChessMove{
     return iterative_deepening(game, MAX_DEPTH).0; 
 }
 
-pub fn iterative_deepening(game: &mut Game, max_depth: u8) -> (ChessMove, f64) {
-    let mut start = Instant::now();
+pub fn iterative_deepening(game: &mut Game, max_depth: u8) -> (ChessMove, i32) {
+    println!("Evaluating: {}", game.get_board().get_fen());
 
-    let mut pair: (ArrayVec<ChessMove, 30>, f64) = (ArrayVec::new(), 0.0);
+    static_eval(game, true);
+
+    let mut start = Instant::now();
+    let mut pair: (ArrayVec<ChessMove, 30>, i32) = (ArrayVec::new(), 0);
     for md in 1..(max_depth + 1) {
         pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md);
         //pair = negation_max(game, i);
 
         let duration = start.elapsed();
-        //println!("{:?}", duration);
-        //print!("Depth: {} Eval: {} Line: ", md, pair.1);
+        println!("{:?}", duration);
+
+        print!("Depth: {} Eval: ", md);
+
+        match pair.1.abs() {
+            0 => print!("Stalemate"),     
+            2 => print!("Repetition"),     
+            3 => print!("InsuffMaterial"),     
+            5 => print!("50MoveRule"),
+            7 => print!("Even"),
+            _ => print!("{}", pair.1)     
+        }
+
+        print!(" Line: ");
 
         let mut list = pair.0.clone();
         list.reverse();
         
-        //for i in 0..(cmp::min(list.len(), md as usize)) {
-        //    list[i].print();
-        //    print!(" ");
-        //}
-        //print!(" | ");
-        //for i in (cmp::min(list.len(), md as usize))..list.len() {
-        //    list[i].print();
-        //    print!(" ");
-        //}
-        //println!();
+        for i in 0..(cmp::min(list.len(), md as usize)) {
+            list[i].print();
+            print!(" ");
+        }
+        print!(" | ");
+        for i in (cmp::min(list.len(), md as usize))..list.len() {
+            list[i].print();
+            print!(" ");
+        }
+        println!();
+
+        if pair.1.abs() > CHECKMATE_VALUE - 10 {
+            break;
+        }
     }
 
     return (*pair.0.last().unwrap(), pair.1);
 }
 
-pub fn negation_max(game: &mut Game, depth_left: u8) -> (ChessMove, f64) {
+pub fn negation_max(game: &mut Game, depth_left: u8) -> (ChessMove, i32) {
     if depth_left == 0 {
         return (chess_move::NULL_MOVE, 
-            static_eval(game));
+            static_eval(game, false));
     }
     
-    let mut best_value = f64::MIN;
+    let mut best_value = i32::MIN;
     let mut best_move = chess_move::NULL_MOVE;
 
     for m in game.get_legal_moves() {
@@ -102,10 +122,14 @@ fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
     });
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) -> (ArrayVec<ChessMove, 30>, f64) {
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) -> (ArrayVec<ChessMove, 30>, i32) {        
     if depth_left == 0 {
         //return (chess_move::NULL_MOVE, static_eval(game));
         return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH);
+    }
+
+    if game.get_game_state() != GameState::Undecided {
+        return (ArrayVec::new(), static_eval(game, false));
     }
     
     let mut best_line = ArrayVec::new();
@@ -139,9 +163,13 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f64, beta: f64, depth_lef
     return (best_line, alpha);
 }
 
-pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) -> (ArrayVec<ChessMove, 30>, f64) {
-    let stand_pat = static_eval(game);
+pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8) -> (ArrayVec<ChessMove, 30>, i32) {
+    let stand_pat = static_eval(game, false);
     
+    if stand_pat.abs() < 7 {
+        return (ArrayVec::new(), stand_pat);
+    }
+
     if stand_pat >= beta {
         return (ArrayVec::new(), beta);
     }
@@ -163,14 +191,14 @@ pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) ->
 
     move_sorter(&mut list);
 
+    //[TODO] quiescence search move gen
     for m in  list {
         
-        if !m.is_direct_capture() {
+        if !(m.is_direct_capture() || m.is_en_passant() || m.is_promotion()) {
             continue;
         }
 
         game.make_move(m);
-
         let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1);
         game.undo_move();
         
@@ -190,179 +218,3 @@ pub fn quiescence(game: &mut Game, mut alpha: f64, beta: f64, depth_left: u8) ->
 
     return (best_line, alpha);
 }
-
-
-//                              Pawn, Knight, Bishop, Rook, Queen
-const PIECE_VALUES: [i32; 6] = [
-    100, 280, 320, 500, 900, 1337_42,
-];
-
-const CHECK_MATE_VALUE: f64 = 1_000_000_000.0;
-
-//Piece value [Pt] 
-//Mobillity [Pt]
-//Center attacks [Pt]
-//King attacks
-//King defences
-//Passed pawns
-//Doubled pawns
-//Pawns on rank [2..6]
-pub fn get_eval_vector(board: &BitBoard) -> Vec<f64> {
-    let mut list = Vec::new();
-    for i in 0..6 {
-        list.push(board.get_piece_count(ColoredPieceType::from_u8(i * 2 + 0)) as f64 
-        - board.get_piece_count(ColoredPieceType::from_u8(i * 2 + 1)) as f64);
-    }
-    
-    //whites perspective
-    let white_list = board.get_pseudo_legal_moves(true);
-    let black_list = board.get_pseudo_legal_moves(false);
-
-    //Mobility
-    let mut mob_count = [0; 6];
-    for m in &white_list {
-        mob_count[PieceType::from_cpt(m.move_piece_type) as usize] += 1;
-    }
-
-    for m in &black_list {
-        mob_count[PieceType::from_cpt(m.move_piece_type) as usize] -= 1;
-    }
-
-    for m in mob_count {
-        list.push(m as f64);
-    }
-
-
-    //Center attack
-    let mut center_score = [0; 6];
-
-    fn is_center_square(square: Square) -> bool {
-        const CENTER_SQUARES: [Square; 8] = [
-            Square::C4, Square::D4, Square::E4, Square::F4, 
-            Square::C5, Square::D5, Square::E5, Square::F5, 
-        ];
-        return CENTER_SQUARES.contains(&square);
-    }
-
-    for m in &white_list {
-        if is_center_square(m.target_square) {
-            center_score[PieceType::from_cpt(m.move_piece_type) as usize] += 1;
-        }   
-    }
-
-    for m in &black_list {
-        if is_center_square(m.target_square) {
-            center_score[PieceType::from_cpt(m.move_piece_type) as usize] -= 1;
-        }   
-    }
-
-    for pc in center_score {
-        list.push(pc as f64);
-    }
-
-    //King safety
-    let mut attacks_on_white_king = 0;
-    let mut defence_on_white_king = 0;
-    let mut attacks_on_black_king = 0;
-    let mut defence_on_black_king = 0;
-
-    for m in &white_list {
-        //defences on white king 
-        if constants::KING_MOVES[board.get_king_square(true) as usize].contains(&(m.target_square as u8)) {
-            defence_on_white_king += 1;
-        }
-        //attacks on black king
-        if constants::KING_MOVES[board.get_king_square(false) as usize].contains(&(m.target_square as u8)) {
-            attacks_on_black_king += 1;
-        }   
-    }
-
-    for m in &black_list {
-        //defences on white king 
-        if constants::KING_MOVES[board.get_king_square(false) as usize].contains(&(m.target_square as u8)) {
-            defence_on_black_king += 1;
-        }
-        //attacks on black king
-        if constants::KING_MOVES[board.get_king_square(true) as usize].contains(&(m.target_square as u8)) {
-            attacks_on_white_king += 1;
-        }   
-    }
-
-    list.push(attacks_on_white_king as f64 - attacks_on_black_king as f64);
-    list.push(defence_on_white_king as f64 - defence_on_black_king as f64);
-    
-
-    //Pawn structure
-    let white_pawns_bitboard = board.get_piece_bitboard(ColoredPieceType::WhitePawn);
-    let black_pawns_bitboard = board.get_piece_bitboard(ColoredPieceType::BlackPawn);
-
-    let white_passed_pawns = count_passed_pawns(white_pawns_bitboard, black_pawns_bitboard, bitboard_helper::WHITE_PASSED_PAWN_MASK);
-    let black_passed_pawns = count_passed_pawns(black_pawns_bitboard, white_pawns_bitboard, bitboard_helper::BLACK_PASSED_PAWN_MASK);
-
-    list.push(white_passed_pawns as f64 - black_passed_pawns as f64);
-
-    let white_doubled_pawns = count_doubled_pawns(white_pawns_bitboard);
-    let black_doubled_pawns = count_doubled_pawns(black_pawns_bitboard);
-
-    list.push(white_doubled_pawns as f64 - black_doubled_pawns as f64);
-    
-    let mut pawn_ranks = [0.0; 8];
-    //dont have to check last or first rank
-    for i in 1..7 {
-        pawn_ranks[i] += (white_pawns_bitboard & bitboard_helper::RANK_MASKS[i]).count_ones() as f64;
-        pawn_ranks[7 - i] -= (black_pawns_bitboard & bitboard_helper::RANK_MASKS[i]).count_ones() as f64;
-    }
-
-    for i in 1..7 {
-        list.push(pawn_ranks[i] as f64);
-    }
-    
-    return list;
-
-    fn count_passed_pawns(allied_pawns: u64, opponent_pawns: u64, pawn_mask: [u64; 64]) -> u32 {
-        let mut count = 0;
-
-        for i in bitboard_helper::iterate_set_bits(allied_pawns) {
-            if opponent_pawns & pawn_mask[i as usize] == 0 {
-                count += 1;
-            }
-        }
-
-        return count;
-    }
-
-    fn count_doubled_pawns(pawn_bitboard: u64) -> u32 {
-        let mut buffer = pawn_bitboard;
-        let mut count = 0;
-        for i in 0..8 {
-            buffer <<= 8;
-
-            count += (pawn_bitboard & buffer).count_ones();
-        }
-
-        return count;
-    }
-}
-
-pub fn eval_board(board: &BitBoard) -> f64 {
-    let v = get_eval_vector(board);
-
-    let mut sum = 0.0;
-
-    for i in 0..5 {
-        sum += v[i] * PIECE_VALUES[i] as f64;
-    }    
-
-    return sum;
-}
-pub fn static_eval(game: &mut Game) -> f64 {
-    
-    match game.get_game_state() {
-        GameState::Checkmate => return CHECK_MATE_VALUE,
-        GameState::Draw => return 0.0,
-        GameState::Undecided => ()
-    }
-    
-    return eval_board(&game.get_board()) * (if game.is_whites_turn() { 1 } else { -1 }) as f64;
-}
-

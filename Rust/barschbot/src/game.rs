@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use arrayvec::ArrayVec;
 
@@ -6,12 +6,40 @@ use crate::{chess_move::ChessMove, constants, bitboard_helper, bit_board::BitBoa
 
 #[derive(PartialEq)]
 pub enum GameState  {
-    Undecided, Draw, Checkmate
+    Undecided, WhiteCheckmate, BlackCheckmate, Stalemate, FiftyMove, Repetition, InsuffMaterial
+}
+
+impl GameState {
+    pub fn is_draw(&self) -> bool {
+        return *self != GameState::Undecided && !self.is_checkmate();
+    }
+
+    pub fn is_checkmate(&self) -> bool {
+        return *self == GameState::WhiteCheckmate || 
+            *self == GameState::BlackCheckmate;
+    } 
+
+    pub fn to_string(&self) -> &str {
+        return match *self {
+            GameState::Undecided => "Undecided",
+
+            GameState::WhiteCheckmate => "White checkmate",
+            GameState::BlackCheckmate => "Black checkmate",
+            
+            GameState::Stalemate => "Draw: Stalemate",
+            GameState::FiftyMove => "Draw: Fifty move rule",
+            GameState::Repetition => "Draw: Repetition",
+            GameState::InsuffMaterial => "Draw: Insufficient material",
+
+            _ => "Oh no",
+        }
+    }
 }
 
 pub struct Game {
-    board_history: HashSet<u64>,
+    board_history: HashSet<u128>,
     board_stack: Vec<BitBoard>,
+    move_stack: Vec<ChessMove>,
     dmc_stack: Vec<u32>,
     board: BitBoard,
     
@@ -25,7 +53,6 @@ impl  Game {
         let parts = fen.split(" ").collect::<Vec<_>>();
 
         let mut board = BitBoard::from_fen(fen);
-
 
         let mut dmc = 0;
         
@@ -41,7 +68,7 @@ impl  Game {
         let mut white_pawns_bitboard = 0;
         let mut black_pawns_bitboard = 0;
 
-        return Game { board_history: HashSet::new(), board_stack: Vec::new(), board, dmc_stack, 
+        return Game { board_history: HashSet::new(), board_stack: Vec::new(), move_stack: Vec::new(), board, dmc_stack, 
             cached_moves: ArrayVec::new(), moves_generated: false }
     }
 
@@ -53,7 +80,7 @@ impl  Game {
         let mut white_pawns_bitboard = 0;
         let mut black_pawns_bitboard = 0;
 
-        return Game { board_history: HashSet::new(), board_stack: Vec::new(), board, dmc_stack, 
+        return Game { board_history: HashSet::new(), board_stack: Vec::new(), move_stack: Vec::new(), board, dmc_stack, 
             cached_moves: ArrayVec::new(), moves_generated: false }
     }
 
@@ -71,7 +98,7 @@ impl  Game {
 
     pub fn make_move(&mut self, m: ChessMove) {
 
-        debug_assert!(self.get_game_state() == GameState::Undecided);
+        assert!(self.get_game_state() == GameState::Undecided);
         
         let mut dmc = self.fifty_move_counter();
         dmc += 1;
@@ -82,15 +109,14 @@ impl  Game {
         //update stacks
         self.dmc_stack.push(dmc);
         self.board_stack.push(self.board);
-        self.board_history.insert(self.board.get_hash_u64());
-        
+        self.board_history.insert(self.board.get_hash_u128());
+        self.move_stack.push(m);
+
         //make move
         self.board = self.board.clone();
         self.board.make_move(m);
 
         self.moves_generated = false;
-
-        let pawn_direction: i32 = if m.is_white_move() { 1 } else { -1 };
     }
 
     pub fn undo_move(&mut self) {
@@ -98,9 +124,22 @@ impl  Game {
 
         self.board = self.board_stack.pop().unwrap();
 
-        self.board_history.remove(&self.board.get_hash_u64());
+        self.board_history.remove(&self.board.get_hash_u128());
+        self.move_stack.pop();
 
         self.moves_generated = false;
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut s = "".to_owned();
+
+        for i in 0..self.board_stack.len() {
+            s += &self.move_stack[i].get_board_name(&self.board_stack[i]);
+            
+            s += " ";
+        }
+
+        return s;
     }
 
     pub fn get_legal_moves(&mut self) -> ArrayVec<ChessMove, 200> {
@@ -115,20 +154,29 @@ impl  Game {
         return *self.dmc_stack.last().unwrap();
     }
 
+    //[TODO] insuff material
     pub fn get_game_state(&mut self) -> GameState {
         if self.get_legal_moves().len() == 0 {
             if self.board.in_check() {
-                return GameState::Checkmate;
+                if self.is_whites_turn() {
+                    return GameState::WhiteCheckmate;
+                }
+                else {
+                    return GameState::BlackCheckmate;
+                }
             } 
             else {
                 //Stale mate
-                return GameState::Draw;
+                return GameState::Stalemate;
             }
         }   
 
-        //Draw by repetition || draw by 50 move  rule
-        if self.board_history.contains(&self.board.get_hash_u64()) || self.fifty_move_counter() >= 50 {
-            return GameState::Draw;
+        if self.board_history.contains(&self.board.get_hash_u128()) {
+            return GameState::Repetition;
+        }
+
+        if self.fifty_move_counter() >= 50 {
+            return GameState::FiftyMove;
         }
 
         return GameState::Undecided;

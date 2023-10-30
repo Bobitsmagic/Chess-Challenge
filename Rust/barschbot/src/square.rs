@@ -175,6 +175,12 @@ impl Square {
         return (*self) as u8 % 8;
     }
 
+    pub fn file_char(&self) -> char {
+        const COLUMN_CHAR: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        return COLUMN_CHAR[self.file() as usize];
+    }
+
     pub const fn bit_board(&self) -> u64 {
         return 1_u64 << (*self) as u8;
     }

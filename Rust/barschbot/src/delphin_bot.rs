@@ -371,11 +371,15 @@ pub fn static_eval(game: &mut Game, nn: &mut FeedForward) -> f64 {
     
     let factor = (if game.is_whites_turn() { 1 } else { -1 }) as f64;
 
-    match game.get_game_state() {
-        GameState::Checkmate => return CHECK_MATE_VALUE * factor,
-        GameState::Draw => return 0.0,
-        GameState::Undecided => ()
+    let gs = game.get_game_state();
+    if gs.is_checkmate() {
+        return CHECK_MATE_VALUE * factor;
     }
+
+    if gs.is_draw() {
+        return 0.0;
+    }
+
     
     return eval_board(&game.get_board(), nn) * -factor;
 }

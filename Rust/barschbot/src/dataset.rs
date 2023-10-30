@@ -1,4 +1,4 @@
-use crate::dolphin_bot;
+use crate::delphin_bot;
 use crate::{bit_board::BitBoard, barsch_bot, game::Game, perceptron::Perceptron};
 use std::cmp;
 use std::fs::{read_to_string, self};
@@ -170,7 +170,7 @@ impl EvalBoards {
 
         for i in 0..self.boards.len() {
 
-            let eval = dolphin_bot::get_neutral_vector(&self.boards[i]);
+            let eval = delphin_bot::get_neutral_vector(&self.boards[i]);
             
             let mut converted = Vec::new();
             for v in eval {
@@ -195,7 +195,7 @@ impl EvalBoards {
 
             let i: usize =  rng.gen_range(0..self.boards.len());
             
-            let eval = dolphin_bot::get_neutral_vector(&self.boards[i]);
+            let eval = delphin_bot::get_neutral_vector(&self.boards[i]);
             
             inpt.push(eval);
 

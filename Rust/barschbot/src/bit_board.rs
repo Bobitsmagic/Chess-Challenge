@@ -161,26 +161,26 @@ impl BitBoard {
     pub fn get_hash_u128(&self) -> u128 {
         let mut value = 0;
 
-        value ^= self.white_pieces  as u128 * 
-            141516239198093536992276405794421837334;
+        value ^= (self.white_pieces  as u128)
+            .wrapping_mul(141516239198093536992276405794421837334);
 
-        value ^= self.black_pieces  as u128 * 
-            173561114907114536576680199187231806622;
+        value ^= (self.black_pieces  as u128)
+            .wrapping_mul(173561114907114536576680199187231806622);
 
-        value ^= self.pawns as u128 * 
-            39576602475516466768139669198408355270;
+        value ^= (self.pawns as u128)
+            .wrapping_mul(39576602475516466768139669198408355270);
 
-        value ^= self.knights as u128 * 
-            129474745790519887634633993636473024638;
+        value ^= (self.knights as u128)
+            .wrapping_mul(129474745790519887634633993636473024638);
 
-        value ^= self.diagonal_sliders as u128 * 
-            71212900092307071930912856320034040288;
+        value ^= (self.diagonal_sliders as u128)
+            .wrapping_mul(71212900092307071930912856320034040288);
 
-        value ^= self.orthogonal_sliders as u128 * 
-            313175290258635108626169005896513099410;
+        value ^= (self.orthogonal_sliders as u128)
+            .wrapping_mul(313175290258635108626169005896513099410);
 
-        value ^= self.kings as u128 * 
-            26952190022079912957214944631943494875;
+        value ^= (self.kings as u128)
+            .wrapping_mul(26952190022079912957214944631943494875);
 
         let mut flags = 0 as u32;
 
@@ -191,8 +191,8 @@ impl BitBoard {
         flags = (self.black_king_castle as u32) << 4;
         flags = (self.en_passant_square as u32) << 5;
 
-        value ^= flags as u128 * 
-            248158451196354537687422843279022481987;
+        value ^= (flags as u128)
+            .wrapping_mul(248158451196354537687422843279022481987);
         
         /*         
         297087683829488592656505905358005851269
@@ -215,26 +215,19 @@ impl BitBoard {
     pub fn get_hash_u64(&self) -> u64 {
         let mut value = 0;
 
-        value ^= self.white_pieces * 
-            3039665143350635744;
+        value ^= self.white_pieces.wrapping_mul(3039665143350635744);
 
-        value ^= self.black_pieces * 
-            17092169764834922902;
+        value ^= self.black_pieces.wrapping_mul(17092169764834922902);
 
-        value ^= self.pawns * 
-            3925853326203578338;
+        value ^= self.pawns.wrapping_mul(3925853326203578338);
 
-        value ^= self.knights * 
-            17354356390057816443;
+        value ^= self.knights.wrapping_mul(17354356390057816443);
 
-        value ^= self.diagonal_sliders * 
-            7472514735885487017;
+        value ^= self.diagonal_sliders.wrapping_mul(7472514735885487017);
 
-        value ^= self.orthogonal_sliders * 
-            15392575389892135373;
+        value ^= self.orthogonal_sliders.wrapping_mul(15392575389892135373);
 
-        value ^= self.kings * 
-            6651258979722590487;
+        value ^= self.kings.wrapping_mul(6651258979722590487);
 
         let mut flags = 0 as u32;
 
@@ -245,8 +238,7 @@ impl BitBoard {
         flags = (self.black_king_castle as u32) << 4;
         flags = (self.en_passant_square as u32) << 5;
 
-        value ^= flags as u64 * 
-            7954050523632553952;
+        value ^= (flags as u64).wrapping_mul(7954050523632553952);
             
         return value;
     }

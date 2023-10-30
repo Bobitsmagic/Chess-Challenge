@@ -1,4 +1,4 @@
-use crate::{constants, bit_board, square::Square, colored_piece_type::ColoredPieceType, piece_type::PieceType};
+use crate::{constants, bit_board::{self, BitBoard}, square::Square, colored_piece_type::ColoredPieceType, piece_type::PieceType};
 use std::num;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -57,6 +57,37 @@ impl ChessMove {
         }
 
         return x;
+    }
+
+    pub fn get_board_name(&self, board: &BitBoard) -> String {
+        if self.is_castle() {
+            if (self.target_square as u8) < (self.start_square as u8) {
+                return "O-O-O".to_owned();
+            }
+            else {
+                return "O-O".to_owned();
+            }
+        }
+
+        let mut s = "".to_owned();
+
+        if PieceType::from_cpt(self.move_piece_type) == PieceType::Pawn {
+            if self.is_direct_capture() || self.is_en_passant() {
+                s += &self.start_square.file_char().to_string();
+            }
+        }
+        else {
+            s += &PieceType::from_cpt(self.move_piece_type).get_char().to_string();
+        }
+        
+
+        if self.is_direct_capture() || self.is_en_passant() {
+            s += "x";
+        }
+
+        s += &self.target_square.to_string();
+
+        return s;
     }
 
     pub fn print(&self) {
