@@ -1,7 +1,7 @@
 use graphics::{types::Color, modular_index::next};
 use piston::controller;
 
-use crate::{colored_piece_type::ColoredPieceType, piece_type::PieceType, bit_board::BitBoard};
+use crate::{colored_piece_type::{ColoredPieceType, self}, piece_type::PieceType, bit_board::BitBoard, square::{Square, self}, constants, zoberist_hash};
 
 pub struct EndgameTable {
     sorted_positions: Vec<Vec<i8>>
@@ -23,7 +23,8 @@ impl EndgameTable {
         println!("Created sets");
 
         let mut board = [ColoredPieceType::None; 64];
-        let mut board_set = Vec::new();
+        //let mut board_set = Vec::new();
+        let mut sum = 0 as usize;
 
         for list in &all_set {
             let mut set = Vec::new();
@@ -34,11 +35,12 @@ impl EndgameTable {
             }
             println!("-> {}", set.len());
 
+            sum += set.len();
 
-            board_set.push(set);
+            //board_set.push(set);
         }
 
-        println!("PieceCount: {}, KombCount: {}", max_piece_count, all_set.len());
+        println!("PieceCount: {}, KombCount: {}, Board count: {}", max_piece_count, all_set.len(), sum);
 
         fn create_boards(list: &Vec<ColoredPieceType>, depth: usize, min_pos: usize, board: &mut [ColoredPieceType; 64], ret: &mut Vec<[ColoredPieceType; 64]>) {
             if depth == list.len() {
@@ -50,6 +52,48 @@ impl EndgameTable {
             for i in min_pos..64 {
                 if board[i] != ColoredPieceType::None {
                     continue;
+                }
+
+                if PieceType::from_cpt(pt) == PieceType::Pawn {
+                    if i < 8 || i >= 64 - 8 {
+                        continue;
+                    }
+                }
+
+                if pt == ColoredPieceType::BlackKing {
+                    let mut collision = false;
+                    for s in constants::KING_MOVES[i] {
+                        if board[*s as usize] == ColoredPieceType::WhiteKing {
+                            collision = true;
+                            break;
+                        }
+                    }
+
+                    if collision {
+                        continue;
+                    }
+                }
+
+                if pt == ColoredPieceType::WhiteKing {
+                    let mut contains_pawn = false;
+                    for other in list {
+                        if PieceType::from_cpt(*other) == PieceType::Pawn {
+                            contains_pawn = true;
+                            break;
+                        }
+                    }
+
+                    let square = Square::from_u8(i as u8);
+                    if contains_pawn {
+                        if square.file() >= 4 {
+                            continue;
+                        }
+                    }
+                    else {
+                        if square.file() >= 4 || square.rank() >= 4 || square.rank() > square.file() {
+                            continue;
+                        }
+                    }
                 }
 
                 board[i] = pt;
@@ -72,12 +116,38 @@ impl EndgameTable {
 
                 let mut vec = Vec::with_capacity(list.len());
 
+
+                let mut white_pieces = Vec::new();
+                let mut black_pieces = Vec::new();
+
                 for pt in list {
                     if *pt == ColoredPieceType::None {
                         break;
                     } 
 
                     vec.push(*pt);
+
+                    if pt.is_white() {
+                        white_pieces.push(*pt);
+                    }
+                    else {
+                        black_pieces.push(*pt);
+                    }
+                }
+
+                //white is always the one with equal more pieces
+                if black_pieces.len() > white_pieces.len() {
+                    return;
+                }
+
+                //white has the more valueable pieces
+                if black_pieces.len() == white_pieces.len() {
+                    for i in 0..white_pieces.len() {
+                        if (PieceType::from_cpt(white_pieces[i]) as u8)
+                            < (PieceType::from_cpt(black_pieces[i]) as u8) {
+                            return;
+                        }
+                    }
                 }
 
                 ret.push(vec);
