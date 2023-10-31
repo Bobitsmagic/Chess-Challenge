@@ -1,3 +1,5 @@
+use graphics::types::Color;
+
 use crate::piece_type::PieceType;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -63,7 +65,7 @@ impl ColoredPieceType {
     }
 
     pub fn from_u8(value: u8) -> ColoredPieceType {
-        const ARRAY: [ColoredPieceType; 12] = [
+        const ARRAY: [ColoredPieceType; 13] = [
             ColoredPieceType::WhitePawn, 
             ColoredPieceType::BlackPawn, 
 
@@ -81,6 +83,8 @@ impl ColoredPieceType {
 
             ColoredPieceType::WhiteKing, 
             ColoredPieceType::BlackKing, 
+
+            ColoredPieceType::None,
         ];
 
         return ARRAY[value as usize];

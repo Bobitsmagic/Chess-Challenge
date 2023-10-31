@@ -194,8 +194,8 @@ pub fn get_eval_vector(board: &BitBoard) -> Vec<f64> {
     }
     
     //whites perspective
-    let white_list = board.get_pseudo_legal_moves(true);
-    let black_list = board.get_pseudo_legal_moves(false);
+    let white_list = board.generate_legal_moves(true);
+    let black_list = board.generate_legal_moves(false);
 
     //Mobility
     let mut mob_count = [0; 6];

@@ -68,8 +68,8 @@ pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
     sum += dif_sum;
     dif_sum = 0;
 
-    let white_list = board.get_pseudo_legal_moves(true);
-    let black_list = board.get_pseudo_legal_moves(false);
+    let white_list = board.generate_legal_moves(true);
+    let black_list = board.generate_legal_moves(false);
 
     if do_print {
         print!("{}[", white_list.len());

@@ -19,6 +19,7 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
+use crate::endgame_table::EndgameTable;
 use crate::square::Square;
 
 mod zoberist_hash;
@@ -39,11 +40,18 @@ mod perceptron;
 mod delphin_bot;
 mod visualizer;
 mod evaluation;
+mod endgame_table;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     
+    EndgameTable::generate(4);
+    
+    println!("Done");
+}
+
+fn play_game() {
     let mut app = App::new();
     let mut game = Game::get_start_position();
     //game = Game::from_fen("3qkb1r/1pp2p2/n3p2p/1N1pP1p1/r7/2Q1P1B1/PPP2PPP/R3K2R w KQk - 4 16");
@@ -56,7 +64,7 @@ fn main() {
 
     while game.get_game_state() == GameState::Undecided {
         let cm = barsch_bot::get_best_move(&mut game);
-        app.read_move();
+        //app.read_move();
 
         game.make_move(cm);
 
@@ -67,9 +75,7 @@ fn main() {
 
     }
 
-    println!("{}", game.to_string());
-
-    println!("Done");
+    println!("Result: {}", game.to_string());
 }
 
 fn check_all_perft_board() {

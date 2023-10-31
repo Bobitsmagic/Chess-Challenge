@@ -6,7 +6,7 @@ use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, constants::{
     evaluation::*};
 
 const MAX_VALUE: i32 = 2_000_000_000;
-const MAX_DEPTH: u8 = 6;
+const MAX_DEPTH: u8 = 7;
 const MAX_QUIESCENCE_DEPTH: u8 = 5;
 
 pub fn get_best_move(game: &mut Game) -> ChessMove{
