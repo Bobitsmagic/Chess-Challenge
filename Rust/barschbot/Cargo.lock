@@ -116,6 +116,7 @@ dependencies = [
  "pistoncore-glutin_window",
  "rand",
  "rand_distr",
+ "rayon",
 ]
 
 [[package]]

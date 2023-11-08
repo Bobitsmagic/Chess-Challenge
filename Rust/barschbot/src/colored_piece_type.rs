@@ -2,7 +2,7 @@ use graphics::types::Color;
 
 use crate::piece_type::PieceType;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColoredPieceType {
     WhitePawn, BlackPawn, 
     WhiteKnight, BlackKnight,
@@ -16,6 +16,30 @@ pub enum ColoredPieceType {
 const PIECE_CHAR: [char; 21] = ['P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k', ' ', '1', '2', '3','4','5','6','7','8'];
 
 impl ColoredPieceType {
+    pub fn get_opposite_color(&self) -> ColoredPieceType {
+        return match *self {
+            ColoredPieceType::WhitePawn => ColoredPieceType::BlackPawn,
+            ColoredPieceType::BlackPawn => ColoredPieceType::WhitePawn,
+
+            ColoredPieceType::WhiteKnight => ColoredPieceType::BlackKnight,
+            ColoredPieceType::BlackKnight => ColoredPieceType::WhiteKnight,
+            
+            ColoredPieceType::WhiteBishop => ColoredPieceType::BlackBishop,
+            ColoredPieceType::BlackBishop => ColoredPieceType::WhiteBishop,
+
+            ColoredPieceType::WhiteRook => ColoredPieceType::BlackRook,
+            ColoredPieceType::BlackRook => ColoredPieceType::WhiteRook,
+
+            ColoredPieceType::WhiteQueen => ColoredPieceType::BlackQueen,
+            ColoredPieceType::BlackQueen => ColoredPieceType::WhiteQueen,
+
+            ColoredPieceType::WhiteKing => ColoredPieceType::BlackKing,
+            ColoredPieceType::BlackKing => ColoredPieceType::WhiteKing,
+
+            ColoredPieceType::None => ColoredPieceType::None,
+        }
+    }
+
     pub fn from_char(char: char) -> ColoredPieceType {
         return match char {
             'P' => ColoredPieceType::WhitePawn,

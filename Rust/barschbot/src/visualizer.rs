@@ -61,7 +61,7 @@ impl App {
         return App { opengl, window, textures };
     }
 
-    pub fn render_board(&mut self, game: &Game, lm: ChessMove) -> bool {
+    pub fn render_board(&mut self, type_field: &[ColoredPieceType; 64], lm: ChessMove) -> bool {
         use graphics::*;
 
         const LIGHT_SQUARE: [f32; 4] = [240.0 / 255.0, 217.0 / 255.0, 181.0 / 255.0, 1.0];
@@ -71,7 +71,6 @@ impl App {
 
         let side_length = self.window.size().width / 8.0;
         let square = rectangle::square(0.0, 0.0, side_length);
-        let type_field = game.get_board().type_field;
         if let Some(e) = self.window.next()  {
 
         self.window.draw_2d(&e, |c, g, _| {

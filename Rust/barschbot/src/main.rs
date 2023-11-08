@@ -46,7 +46,13 @@ use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     
-    EndgameTable::generate(4);
+    let mut set = endgame_table::generate_type_fields(4);
+
+    //println!("Syms: {}", endgame_table::check_syms(&set));
+
+    let list = endgame_table::gen_legal_boards(&set);
+
+    let table = EndgameTable::new(&list);
     
     println!("Done");
 }
@@ -57,7 +63,7 @@ fn play_game() {
     //game = Game::from_fen("3qkb1r/1pp2p2/n3p2p/1N1pP1p1/r7/2Q1P1B1/PPP2PPP/R3K2R w KQk - 4 16");
 
     for i in 0..10 {
-        app.render_board(&game, chess_move::NULL_MOVE);    
+        app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
     }
 
     //app.read_move();
@@ -69,7 +75,7 @@ fn play_game() {
         game.make_move(cm);
 
         for i in 0..10 {
-            app.render_board(&game, cm);
+            app.render_board(&game.get_board().type_field, cm);
 
         }
 

@@ -75,24 +75,24 @@ const BKC_HASH: u64 = 8869386327382603398;
 const TURN_HASH: u64 = 8521608624400063290;
 
 #[derive(Clone, Copy)]
-pub struct ZoberistHash {
+pub struct ZoberistHash64 {
     value: u64
 }
 
-impl ZoberistHash {
+impl ZoberistHash64 {
     pub fn get_hash(&self) -> u64{
         return self.value;
     }
 
     pub fn new() -> Self {
-        return ZoberistHash { value: 0 }
+        return ZoberistHash64 { value: 0 }
     }
 
-    pub fn recalculate_hash(&mut self, piece_field: &[ColoredPieceType; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) {
-        self.value = ZoberistHash::calculate_hash(piece_field, whites_turn,  ep_square, wqc, wkc, bqc, bkc);
+    pub fn recalculate_hash(&mut self, piece_field: &[ColoredPieceType; 64], whites_turn: bool, ep_square: Square, wqc: bool, wkc: bool, bqc: bool, bkc: bool) {
+        self.value = ZoberistHash64::calculate_hash(piece_field, whites_turn,  ep_square, wqc, wkc, bqc, bkc);
     }
 
-    pub fn calculate_hash(piece_field: &[ColoredPieceType; 64], whites_turn: bool, ep_square: u8, wqc: bool, wkc: bool, bqc: bool, bkc: bool) -> u64 {
+    pub fn calculate_hash(piece_field: &[ColoredPieceType; 64], whites_turn: bool, ep_square: Square, wqc: bool, wkc: bool, bqc: bool, bkc: bool) -> u64 {
         let mut hash = 0;
 
         for i in 0..64 {

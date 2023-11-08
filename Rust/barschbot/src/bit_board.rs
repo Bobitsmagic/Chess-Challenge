@@ -1,7 +1,10 @@
 use std::char;
 use arrayvec::ArrayVec;
+use graphics::types::Color;
 
-use crate::{bitboard_helper::{self, toggle_bit}, chess_move::ChessMove, square::Square, colored_piece_type::{ColoredPieceType, self}, piece_type::PieceType};
+use crate::{bitboard_helper::{self, toggle_bit}, chess_move::ChessMove, square::Square, colored_piece_type::{ColoredPieceType, self}, piece_type::PieceType, endgame_table::BoardState, zoberist_hash::ZoberistHash64};
+
+
 
 //const DEBUG: bool = std::cfg!(debug_assertions);
 
@@ -41,6 +44,167 @@ impl BitBoard {
 
     pub fn is_whites_turn(&self) -> bool {
         return self.whites_turn;
+    }
+
+    pub fn set_whites_turn(&mut self, whites_turn: bool) {
+        self.whites_turn = whites_turn;
+    }
+
+    pub fn from_type_field(type_field: [ColoredPieceType; 64]) -> Self {
+        let mut board = BitBoard::empty(); 
+        
+        for i in 0..64 {
+            if type_field[i] != ColoredPieceType::None {
+                board.place_piece(type_field[i], Square::from_u8(i as u8));
+            }
+        }
+
+        return board;
+    }
+
+    pub fn from_board_state(bs: &BoardState) -> Self {
+        let mut board = BitBoard::empty(); 
+        
+        for i in 0..64 {
+            if bs.type_field[i] != ColoredPieceType::None {
+                board.place_piece(bs.type_field[i], Square::from_u8(i as u8));
+            }
+        }
+
+        board.set_whites_turn(bs.whites_turn);
+        board.en_passant_square = bs.ep_square;
+
+        return board;
+    }
+
+    pub fn get_board_state(&self) -> BoardState {
+        return BoardState { type_field: self.type_field.clone(), ep_square: self.en_passant_square, whites_turn: self.whites_turn }
+    }
+
+    pub fn get_valid_mover(&mut self) -> (bool, bool) {
+
+        let attacks_on_white = self.get_square_attacker(false, self.get_king_square(true));
+        let attacks_on_black = self.get_square_attacker(true, self.get_king_square(false));
+
+        //both in check
+        if attacks_on_white.len() > 0 && attacks_on_black.len() > 0 {
+            return (false, false);
+        }
+
+        if attacks_on_white.len() > 2 || attacks_on_black.len() > 2 {
+            return (false, false); 
+        }
+
+        //if attacks_on_white.len() == 2 {
+        //    if !is_valid_double_check(self.type_field[attacks_on_white[0] as usize] as u8,
+        //        self.type_field[attacks_on_white[1] as usize] as u8) {
+        //        return (false, false);
+        //    }
+        //}
+//
+        //if attacks_on_black.len() == 2 {
+        //    if !is_valid_double_check(self.type_field[attacks_on_black[0] as usize] as u8,
+        //        self.type_field[attacks_on_black[1] as usize] as u8) {
+        //        return (false, false);
+        //    }
+        //}  
+
+        if attacks_on_white.len() > 0 {
+            return (true, false);
+        }
+
+        if attacks_on_black.len() > 0 {
+            return (false, true);
+        }
+
+        return (true, true);
+        
+        fn is_valid_double_check(cpt1: u8, cpt2: u8) -> bool {
+            let min = PieceType::from_u8(cpt1.min(cpt2) / 2);
+            let max = PieceType::from_u8(cpt1.max(cpt2) / 2);
+
+            return match (min, max) {
+                (PieceType::Knight, PieceType::Bishop) => true,
+                (PieceType::Knight, PieceType::Rook) => true,
+                (PieceType::Knight, PieceType::Queen) => true,
+                (PieceType::Bishop, PieceType::Rook) => true,
+                (PieceType::Bishop, PieceType::Queen) => true,
+                (PieceType::Rook, PieceType::Queen) => true,
+
+                _ => false
+            }
+        }
+    }
+
+    pub fn get_valid_ep_squares(&mut self) -> Vec<Square> {
+        let mut rank_5 = bitboard_helper::RANK_MASKS[if self.whites_turn { 4 } else { 3 }];
+        let allied_pawns = self.pawns & rank_5 & if self.whites_turn { self.white_pieces } else { self.black_pieces };
+        let opponent_pawns = self.pawns & rank_5 & if !self.whites_turn { self.white_pieces } else { self.black_pieces };
+
+        let pawns_with_neighbours = bitboard_helper::shift_board(allied_pawns, 1, 0) 
+            | bitboard_helper::shift_board(allied_pawns, -1, 0);
+            
+        let shift_direction = if self.whites_turn { -1 } else { 1 };
+
+        let all_pieces = self.white_pieces | self.black_pieces;
+        let occupied_squares = bitboard_helper::shift_board(all_pieces, 0, shift_direction) 
+            | bitboard_helper::shift_board(all_pieces, 0, shift_direction * 2);
+        
+        
+        let mut list = vec![Square::None];
+
+        for index in bitboard_helper::iterate_set_bits(opponent_pawns & pawns_with_neighbours & !occupied_squares) {
+            list.push(Square::from_u8(index as u8 - (shift_direction * 8) as u8 ));    
+        }
+
+        return list;
+    }
+
+    pub fn is_valid_position(&mut self) -> bool {
+
+        let attacks_on_white = self.get_square_attacker(true, self.get_king_square(false));
+        let attacks_on_black = self.get_square_attacker(false, self.get_king_square(true));
+
+        //both in check
+        if attacks_on_white.len() > 0 && attacks_on_black.len() > 0 {
+            return false;
+        }
+
+        if attacks_on_white.len() > 2 || attacks_on_black.len() > 2 {
+            return false 
+        }
+
+        if attacks_on_white.len() == 2 {
+            if !is_valid_double_check(self.type_field[attacks_on_white[0] as usize] as u8,
+                self.type_field[attacks_on_white[1] as usize] as u8) {
+                return false;
+            }
+        }
+
+        if attacks_on_black.len() == 2 {
+            if !is_valid_double_check(self.type_field[attacks_on_black[0] as usize] as u8,
+                self.type_field[attacks_on_black[1] as usize] as u8) {
+                return false;
+            }
+        }   
+
+        return true;
+        
+        fn is_valid_double_check(cpt1: u8, cpt2: u8) -> bool {
+            let min = PieceType::from_u8(cpt1.min(cpt2) / 2);
+            let max = PieceType::from_u8(cpt1.max(cpt2) / 2);
+
+            return match (min, max) {
+                (PieceType::Knight, PieceType::Bishop) => true,
+                (PieceType::Knight, PieceType::Rook) => true,
+                (PieceType::Knight, PieceType::Queen) => true,
+                (PieceType::Bishop, PieceType::Rook) => true,
+                (PieceType::Bishop, PieceType::Queen) => true,
+                (PieceType::Rook, PieceType::Queen) => true,
+
+                _ => false
+            }
+        }
     }
 
     pub fn from_fen(fen: &str) -> Self {
@@ -212,35 +376,9 @@ impl BitBoard {
         return value;
     }   
 
-    pub fn get_hash_u64(&self) -> u64 {
-        let mut value = 0;
-
-        value ^= self.white_pieces.wrapping_mul(3039665143350635744);
-
-        value ^= self.black_pieces.wrapping_mul(17092169764834922902);
-
-        value ^= self.pawns.wrapping_mul(3925853326203578338);
-
-        value ^= self.knights.wrapping_mul(17354356390057816443);
-
-        value ^= self.diagonal_sliders.wrapping_mul(7472514735885487017);
-
-        value ^= self.orthogonal_sliders.wrapping_mul(15392575389892135373);
-
-        value ^= self.kings.wrapping_mul(6651258979722590487);
-
-        let mut flags = 0 as u32;
-
-        flags = (self.whites_turn as u32) << 0;
-        flags = (self.white_queen_castle as u32) << 1;
-        flags = (self.white_king_castle as u32) << 2;
-        flags = (self.black_queen_castle as u32) << 3;
-        flags = (self.black_king_castle as u32) << 4;
-        flags = (self.en_passant_square as u32) << 5;
-
-        value ^= (flags as u64).wrapping_mul(7954050523632553952);
-            
-        return value;
+    pub fn get_zoberist_hash(&self) -> u64 {
+        return ZoberistHash64::calculate_hash(&self.type_field, self.whites_turn, self.en_passant_square, 
+            self.white_queen_castle, self.white_king_castle, self.black_queen_castle, self.black_king_castle);
     }
 
     fn toggle_piece_bitboards(&mut self, colored_piece_type: ColoredPieceType, square: Square) {
@@ -395,7 +533,6 @@ impl BitBoard {
 
         return false;
     }
-
 
     pub fn get_piece_type(&self, target_square: Square) -> ColoredPieceType {
         return self.type_field[target_square as usize];
@@ -990,7 +1127,29 @@ impl BitBoard {
         let pawn_direction: i32 = if self.whites_turn { 1 } else { -1 };
         if PieceType::from_cpt(m.move_piece_type) == PieceType::Pawn && 
             (m.start_square as u8).abs_diff(m.target_square as u8) == 16 {
-            self.en_passant_square = Square::from_u8((m.target_square as i32 - pawn_direction * 8) as u8);
+
+            let x = m.target_square.file();
+            let y = m.target_square.rank();
+
+            let mut has_neighbour = false;
+            if x > 0 {
+                if self.type_field[(x - 1 + y * 8) as usize] == m.move_piece_type.get_opposite_color() {
+                    has_neighbour = true;
+                }
+            }
+
+            if x < 7 {
+                if self.type_field[(x + 1 + y * 8) as usize] == m.move_piece_type.get_opposite_color() {
+                    has_neighbour = true;
+                }
+            }
+
+            if has_neighbour {
+                self.en_passant_square = Square::from_u8((m.target_square as i32 - pawn_direction * 8) as u8);
+            }
+            else {
+                self.en_passant_square = Square::None;
+            }
         }
         else {
             self.en_passant_square = Square::None;
@@ -1049,17 +1208,14 @@ impl BitBoard {
         return self.generate_legal_moves(self.whites_turn);        
     }
 
-    
-    pub fn print(&self) {
-        println!("Fen: {}", self.get_fen());
-
+    pub fn print_type_field(type_field: &[ColoredPieceType; 64]) {
         const PIECE_CHAR: [char; 13] = ['P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k', ' '];
         println!("   {}", String::from_utf8(vec![b'_'; 16]).unwrap());
 
         for y in (0..8).rev() {
             print!("{} |", y + 1);
             for x in 0..8 {
-                let p = self.type_field[x + y * 8];
+                let p = type_field[x + y * 8];
                 
                 print!("{} ", PIECE_CHAR[p as usize]);
                 
@@ -1069,6 +1225,11 @@ impl BitBoard {
 
         println!("   {}", String::from_utf8(vec![b'-'; 16]).unwrap());
         println!("   a b c d e f g h");
+    }
+    pub fn print(&self) {
+        println!("Fen: {}", self.get_fen());
+
+        Self::print_type_field(&self.type_field);
 
         if self.white_king_castle || self.white_queen_castle || self.black_king_castle || self.black_queen_castle {
             //KQkq
@@ -1097,6 +1258,10 @@ impl BitBoard {
             self.en_passant_square.print();
             println!();
         }
+
+        println!("Hash: {}", self.get_zoberist_hash());
+
+        println!();
     }
 
     pub fn print_bitboards(&self) {

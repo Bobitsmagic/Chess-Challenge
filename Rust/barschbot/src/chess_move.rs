@@ -110,5 +110,9 @@ impl ChessMove {
         if self.is_en_passant() {
             print!("!");
         }
+
+        if self.is_promotion() {
+            print!(" > {}", self.promotion_piece_type.get_char());
+        }
     }
 }
