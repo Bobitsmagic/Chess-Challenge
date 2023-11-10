@@ -1,4 +1,4 @@
-use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper};
+use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper, endgame_table::EndgameTable};
 
 pub const CHECKMATE_VALUE: i32 = 1_000_000_000;
 //                              Pawn, Knight, Bishop, Rook, Queen, King
@@ -18,6 +18,9 @@ const KING_ATTACK_PENALTY: i32 = -69;
 const KING_DEFENCE_VALUE: i32 = 40;
 
 //const DO_PRINT: bool = false;
+
+
+//legal move gen with defences (own pieces, both sides, no legallity check(?))
 
 pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
     let gs = game.get_game_state();

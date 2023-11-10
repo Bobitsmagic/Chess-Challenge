@@ -45,43 +45,55 @@ mod endgame_table;
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
-    
-    let mut set = endgame_table::generate_type_fields(4);
 
-    //println!("Syms: {}", endgame_table::check_syms(&set));
+    //play_game();
 
-    let list = endgame_table::gen_legal_boards(&set);
+    check_all_perft_board();
 
-    let table = EndgameTable::new(&list);
-    
     println!("Done");
 }
 
 fn play_game() {
     let mut app = App::new();
     let mut game = Game::get_start_position();
-    //game = Game::from_fen("3qkb1r/1pp2p2/n3p2p/1N1pP1p1/r7/2Q1P1B1/PPP2PPP/R3K2R w KQk - 4 16");
+
+
+    game = Game::from_fen("8/8/3k4/1ppp4/8/8/3B1N2/2K5 w - - 0 1");
 
     for i in 0..10 {
         app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
     }
 
+    let table = EndgameTable::load();
+    println!("Loaded table");
     //app.read_move();
 
     while game.get_game_state() == GameState::Undecided {
-        let cm = barsch_bot::get_best_move(&mut game);
+        //let cm = barsch_bot::get_best_move(&mut game);
+        let cm = barsch_bot::get_best_move(&mut game, &table);
+        
         //app.read_move();
+        cm.print();
+        println!(" is best move");
 
         game.make_move(cm);
+
 
         for i in 0..10 {
             app.render_board(&game.get_board().type_field, cm);
 
         }
 
-    }
+        let ten_millis = time::Duration::from_millis(0);
+        thread::sleep(ten_millis);
 
-    println!("Result: {}", game.to_string());
+    }
+    
+    let ten_millis = time::Duration::from_millis(1000);
+    thread::sleep(ten_millis);
+    
+    println!("Result: {}", game.get_game_state().to_string());
+    println!("{}", game.to_string());
 }
 
 fn check_all_perft_board() {

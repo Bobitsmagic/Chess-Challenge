@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::{collections::HashMap, fs::{OpenOptions, File}, io::{BufWriter, Write, Read}};
 
 use arrayvec::ArrayVec;
 use piston::controller;
@@ -6,7 +6,7 @@ use rayon::prelude::{*, IndexedParallelIterator};
 
 use std::{thread, time};
 
-use crate::{colored_piece_type::{ColoredPieceType, self}, piece_type::PieceType, bit_board::BitBoard, square::{Square, self}, constants, zoberist_hash, chess_move::{ChessMove, self}};
+use crate::{colored_piece_type::{ColoredPieceType, self}, piece_type::PieceType, bit_board::BitBoard, square::{Square, self}, constants, zoberist_hash, chess_move::{ChessMove, self}, game::GameState};
 
 pub fn generate_type_fields(max_piece_count: usize) -> Vec<Vec<[ColoredPieceType; 64]>> {
     assert!(max_piece_count >= 2);
@@ -510,15 +510,15 @@ pub fn is_insufficient_material(list: &Vec<ColoredPieceType>) -> bool {
     return false;
 }
 
-const UNDEFINED: i8 = i8::MIN;
-const WHITE_CHECKMATE: i8 = -127;
-const BLACK_CHECKMATE: i8 = 127;
-const DRAW: i8 = 0;
+pub const UNDEFINED: i8 = i8::MIN;
+pub const WHITE_CHECKMATE: i8 = -127;
+pub const BLACK_CHECKMATE: i8 = 127;
+pub const DRAW: i8 = 0;
 pub struct EndgameTable {
     table_map: HashMap<u64, i8>,
 }
 
-//legal move gen with defences (own pieces, both sides, no legallity check(?))
+
 
 impl EndgameTable {
     pub fn new(sorted_positions: &Vec<Vec<BoardState>>) -> EndgameTable {
@@ -574,10 +574,10 @@ impl EndgameTable {
             new_mate_counter = 0;
             for set in sorted_positions {
                 let types = get_type_list(set[0].type_field);
-                for i in 0..(types.len() - 2) {
-                    print!("{} ", types[i].get_char());
-                }
-                println!();
+                //for i in 0..(types.len() - 2) {
+                //    print!("{} ", types[i].get_char());
+                //}
+                //println!();
 
                 for bs in set {
                     let board = BitBoard::from_board_state(bs);
@@ -608,20 +608,6 @@ impl EndgameTable {
 
                         let sym = buffer.get_board_state().get_lowest_symmetry();                       
                         buffer = BitBoard::from_board_state(&sym);
-
-                        if !table_map.contains_key(&&buffer.get_zoberist_hash()) {
-                            println!("Error #################");
-                            BitBoard::print_type_field(&buffer.get_board_state().get_lowest_symmetry().type_field);
-
-                            board.print();
-
-                            m.print();
-                            println!();
-
-                            buffer.print();
-
-                            println!("{}", buffer.get_hash_u128());
-                        }
                         
                         let mut s = table_map[&buffer.get_zoberist_hash()];
 
@@ -711,7 +697,6 @@ impl EndgameTable {
             }
         }
         
-
         return EndgameTable { table_map };
 
         fn wait() {
@@ -720,5 +705,68 @@ impl EndgameTable {
 
             thread::sleep(ten_millis);
         }
+    }
+
+    pub fn store_data(&self) {
+        let mut file = File::create("table_base.bin").unwrap();
+        
+        let mut buffer = Vec::with_capacity(self.table_map.len()); 
+
+        for pair in &self.table_map {
+            let bytes = pair.0.to_be_bytes();
+            for b in bytes {
+                buffer.push(b);
+            }
+            
+            buffer.push(pair.1.to_be_bytes()[0]);
+        }
+        
+        // Write a slice of bytes to the file
+        file.write_all(&buffer).unwrap();
+    }
+
+    pub fn load() -> Self {
+        let mut file = File::open("table_base_4.bin").unwrap();
+        // read the same file back into a Vec of bytes
+        let mut buffer = Vec::<u8>::new();
+        file.read_to_end(&mut buffer).unwrap();
+
+        let count = buffer.len() / 9;
+
+        if buffer.len() % 9 != 0 {
+            panic!("Kekeke");
+        }
+
+        let mut table_map = HashMap::with_capacity(count);
+        for i in 0..count {
+            let start_index = i * 9;
+            let mut bytes = [0_u8; 8];
+            bytes.copy_from_slice(&buffer[start_index..(start_index + 8)]);
+
+            let hash = u64::from_be_bytes(bytes);
+            let score = i8::from_be_bytes([buffer[start_index + 8]; 1]);
+
+            table_map.insert(hash, score);
+        }
+
+        return EndgameTable { table_map };        
+    }
+
+    pub fn get_score(&self, board: &BitBoard) -> i8 {
+        let sym = BitBoard::from_board_state(& board.get_board_state().get_lowest_symmetry());                               
+        let mut s = self.table_map[&sym.get_zoberist_hash()];
+
+        if s == UNDEFINED {
+            println!("Undefined: ");
+            board.print();
+
+            return 0;
+        }
+
+        if sym.is_whites_turn() != board.is_whites_turn() {
+            s = -s;
+        }
+
+        return s;
     }
 }

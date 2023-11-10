@@ -81,6 +81,10 @@ impl BitBoard {
         return BoardState { type_field: self.type_field.clone(), ep_square: self.en_passant_square, whites_turn: self.whites_turn }
     }
 
+    pub fn get_all_piece_count(&self) -> u32 {
+        return (self.white_pieces | self.black_pieces).count_ones();
+    }
+
     pub fn get_valid_mover(&mut self) -> (bool, bool) {
 
         let attacks_on_white = self.get_square_attacker(false, self.get_king_square(true));

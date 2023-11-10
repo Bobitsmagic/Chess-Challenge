@@ -131,8 +131,11 @@ impl  Game {
     }
 
     pub fn to_string(&self) -> String {
-        let mut s = "".to_owned();
+        let mut s = "[Fen \"".to_owned();
+        s += &self.board_stack[0].get_fen();
+        s += "\"]";
 
+        s += "\n";
         for i in 0..self.board_stack.len() {
             s += &self.move_stack[i].get_board_name(&self.board_stack[i]);
             
@@ -175,7 +178,7 @@ impl  Game {
             return GameState::Repetition;
         }
 
-        if self.fifty_move_counter() >= 50 {
+        if self.fifty_move_counter() >= 100 {
             return GameState::FiftyMove;
         }
 
