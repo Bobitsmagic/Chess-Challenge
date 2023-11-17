@@ -19,6 +19,7 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
+use crate::bitboard_helper::{RANK_MASKS, FILE_MASKS, ORHTOGONAL_MASK, DIAGONAL_MASK};
 use crate::endgame_table::EndgameTable;
 use crate::square::Square;
 
@@ -41,14 +42,71 @@ mod delphin_bot;
 mod visualizer;
 mod evaluation;
 mod endgame_table;
+mod magic_masks;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
     //play_game();
+    
+    let mut result = Vec::new();
+    for i in 0..64 {
+        let moves = 0 as u64;
+        
+        let mask = bitboard_helper::DIAGONAL_MASK[i];
+        let vec: Vec<u32> = bitboard_helper::iterate_set_bits(mask).collect();
+        let mut list = vec![0_u64; 1 << vec.len()];      
+             
+        //println!("Mask: ");
+        //bitboard_helper::print_bitboard(mask);
+        
+        for index in 0..(1_u64 << vec.len()) {
+            let mut blocker = 0_u64;
 
-    check_all_perft_board();
+            for j in 0..vec.len() {
+                if bitboard_helper::get_bit(index, Square::from_u8(j as u8)) {
+                    blocker |= 1 << vec[j];
+                }
+            }
+
+            let pos = 1 << i;
+            let m = (bitboard_helper::fill_down_right(pos, !blocker) | 
+                bitboard_helper::fill_up_right(pos, !blocker) |
+                bitboard_helper::fill_down_left(pos, !blocker) |
+                bitboard_helper::fill_up_left(pos, !blocker));
+
+            let ma = bitboard_helper::capture_down_right(m, blocker) | 
+                bitboard_helper::capture_down_left(m, blocker) | 
+                bitboard_helper::capture_up_right(m, blocker) | 
+                bitboard_helper::capture_up_left(m, blocker);
+
+            //println!("Blocker: ");
+            //bitboard_helper::print_bitboard(blocker);
+            //println!("Moves: ");
+            //bitboard_helper::print_bitboard(m & !(1 << i));
+            //println!("Caps: ");
+            //bitboard_helper::print_bitboard(ma);
+
+            list[bitboard_helper::order_bits(blocker, mask) as usize] = ma | m;
+        }
+
+        print!("{} ", list.len());
+
+        result.push(list);
+
+    }
+
+    for v in result {
+        print!("&[");
+
+        for val in v {
+            print!("{:#0x}, ", val);
+        }
+
+        println!("],");
+    }
+    //check_all_perft_board();
 
     println!("Done");
 }
@@ -134,14 +192,10 @@ fn check_all_perft_board() {
             let count = res.positions;    
             sum += count;
 
-            print!("Depth: {} -> {}", d, count);
             if count != target_res[d as usize] {
+                print!("Depth: {} -> {}", d, count);
                 println!(" should be: {}", target_res[d as usize]);
-            }
-            else {
-                println!();
-            }
-            
+            }            
         }
 
         let duration = start.elapsed();
@@ -189,14 +243,10 @@ fn check_all_perft_game() {
             let count = res.positions;    
             sum += count;
 
-            print!("Depth: {} -> {}", d, count);
             if count != target_res[d as usize] {
+                print!("Depth: {} -> {}", d, count);
                 println!(" should be: {}", target_res[d as usize]);
-            }
-            else {
-                println!();
-            }
-            
+            }            
         }
 
         let duration = start.elapsed();

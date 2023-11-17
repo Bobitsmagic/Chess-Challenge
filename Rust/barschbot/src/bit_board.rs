@@ -1,3 +1,4 @@
+use core::panic;
 use std::char;
 use arrayvec::ArrayVec;
 use graphics::types::Color;
@@ -326,60 +327,6 @@ impl BitBoard {
         return s;
     }
 
-    pub fn get_hash_u128(&self) -> u128 {
-        let mut value = 0;
-
-        value ^= (self.white_pieces  as u128)
-            .wrapping_mul(141516239198093536992276405794421837334);
-
-        value ^= (self.black_pieces  as u128)
-            .wrapping_mul(173561114907114536576680199187231806622);
-
-        value ^= (self.pawns as u128)
-            .wrapping_mul(39576602475516466768139669198408355270);
-
-        value ^= (self.knights as u128)
-            .wrapping_mul(129474745790519887634633993636473024638);
-
-        value ^= (self.diagonal_sliders as u128)
-            .wrapping_mul(71212900092307071930912856320034040288);
-
-        value ^= (self.orthogonal_sliders as u128)
-            .wrapping_mul(313175290258635108626169005896513099410);
-
-        value ^= (self.kings as u128)
-            .wrapping_mul(26952190022079912957214944631943494875);
-
-        let mut flags = 0 as u32;
-
-        flags = (self.whites_turn as u32) << 0;
-        flags = (self.white_queen_castle as u32) << 1;
-        flags = (self.white_king_castle as u32) << 2;
-        flags = (self.black_queen_castle as u32) << 3;
-        flags = (self.black_king_castle as u32) << 4;
-        flags = (self.en_passant_square as u32) << 5;
-
-        value ^= (flags as u128)
-            .wrapping_mul(248158451196354537687422843279022481987);
-        
-        /*         
-        297087683829488592656505905358005851269
-        255992876604555291044349869126379225239
-        305918099076420451987636982933835964609
-        264122910055416979436301370926171875983
-        155856638156333048870837279920145043734
-        49306992832883477294068497783169164451
-        319386762625185349022885906980108968854
-        78661079691170205034158319609759924241
-        172241145243862772507603641717456209138
-        209284083935763249678617149255109424028
-        65955788389331487485191191890681339416
-        */
-
-
-        return value;
-    }   
-
     pub fn get_zoberist_hash(&self) -> u64 {
         return ZoberistHash64::calculate_hash(&self.type_field, self.whites_turn, self.en_passant_square, 
             self.white_queen_castle, self.white_king_castle, self.black_queen_castle, self.black_king_castle);
@@ -644,7 +591,58 @@ impl BitBoard {
             return  pinned_pieces;
         }
     }
-                                            
+
+    fn get_pin_full_pin_info(&self, white: bool) -> (u64, u64, u64, u64) {
+        let opposing_pieces = if !white { self.white_pieces } else { self.black_pieces };
+        let allied_pieces = if white { self.white_pieces } else { self.black_pieces };
+        let all_pieces = opposing_pieces | allied_pieces;
+        let king_square = self.get_king_square(white);
+        
+        //Diagonal
+        
+        let diagonal_attackers = self.diagonal_sliders & opposing_pieces & bitboard_helper::DIAGONAL_ATTACKS[king_square as usize];
+        let mut pos_diagonal = 0;
+        let mut neg_diagonal = 0;
+        for index in bitboard_helper::iterate_set_bits(diagonal_attackers) {
+            
+            let square = Square::from_u8(index as u8);
+            let in_between = bitboard_helper::get_in_between(king_square, square);
+            
+            let piece = in_between & all_pieces;
+            if piece.count_ones() == 1 {
+                //x0 - y0 = x1 - y1
+                if square.file() + king_square.rank() == square.rank() + king_square.file() {
+                    pos_diagonal = piece;
+                }
+                else {
+                    neg_diagonal = piece;
+                }
+            }
+        }
+        
+        let orthogonal_attackers = self.orthogonal_sliders & opposing_pieces & bitboard_helper::ORTHOGONAL_ATTACKS[king_square as usize];
+        let mut horizontal = 0;
+        let mut vertical = 0;
+        for index in bitboard_helper::iterate_set_bits(orthogonal_attackers) {
+            
+            let square = Square::from_u8(index as u8);
+            let in_between = bitboard_helper::get_in_between(king_square, square);
+            
+            let piece = in_between & all_pieces;
+            if piece.count_ones() == 1 {
+                
+                if square.file() != king_square.file() {
+                    horizontal = piece;
+                }
+                else {
+                    vertical = piece;
+                }
+            }
+        }
+
+        return (horizontal, vertical, pos_diagonal, neg_diagonal);
+    }
+
     pub fn generate_legal_moves(&self, whites_turn: bool) -> ArrayVec<ChessMove, 200> {
         let attacker_list = self.get_square_attacker(!whites_turn, self.get_king_square(whites_turn));
         
@@ -661,12 +659,48 @@ impl BitBoard {
         }
 
         return self.generate_legal_moves_no_check(whites_turn);
+        
+        //let mut list = self.generate_legal_moves_no_check(whites_turn);
+        //let mut fast = self.generate_legal_moves_no_check_fast(whites_turn);
+        //
+        //if list.len() != fast.len() {
+        //    self.print();
+        //    
+        //    let pair = self.get_pin_full_pin_info(whites_turn);
+        //    
+        //    println!("hori");
+        //    bitboard_helper::print_bitboard(pair.0);
+        //    println!("vert");
+        //    bitboard_helper::print_bitboard(pair.1);
+        //    println!("pos diag");
+        //    bitboard_helper::print_bitboard(pair.2);
+        //    println!("neg diag");
+        //    bitboard_helper::print_bitboard(pair.3);
+        //    
+        //    
+        //    list.sort_by(|a ,b| a.get_board_name(&self).cmp(&b.get_board_name(&self)));
+        //    fast.sort_by(|a ,b| a.get_board_name(&self).cmp(&b.get_board_name(&self)));
+        //    
+        //    for m in list {
+        //        print!("{} ", m.get_board_name(&self));
+        //    }
+        //    
+        //    println!();
+        //    for m in fast {
+        //        print!("{} ", m.get_board_name(&self));
+        //    }
+        //    println!();
+        //    
+        //    panic!("Oh no");
+        //}
+        //
+        //return self.generate_legal_moves_no_check_fast(whites_turn);
     }   
-
+    
     //Only king moves
     fn generate_legal_king_moves(&self, whites_turn: bool) -> ArrayVec<ChessMove, 200> {
         let mut list = ArrayVec::new();
-
+        
         let moving_color_mask = if whites_turn { self.white_pieces } else { self.black_pieces };
         
         let king_queen_mask = bitboard_helper::QUEEN_ATTACKS[self.get_king_square(whites_turn) as usize];
@@ -840,6 +874,365 @@ impl BitBoard {
         for m in self.generate_legal_king_moves(whites_turn) {
             list.push(m);
         }
+
+        return list;
+    }
+
+    fn generate_legal_moves_no_check_fast(&self, whites_turn: bool) -> ArrayVec<ChessMove, 200> {
+        let mut list = ArrayVec::new();
+
+        let king_square = self.get_king_square(whites_turn);
+
+        let (horizontal_pins, vertical_pins, pos_diagonal_pins, neg_diagonal_pins) = self.get_pin_full_pin_info(whites_turn);
+        let all_pins = horizontal_pins | vertical_pins | pos_diagonal_pins | neg_diagonal_pins;
+
+        let horizontal_moveable = !(all_pins & !horizontal_pins);
+        let vertical_moveable = !(all_pins & !vertical_pins);
+        let pos_diagonal_moveable = !(all_pins & !pos_diagonal_pins);
+        let neg_diagonal_moveable = !(all_pins & !neg_diagonal_pins);
+
+        //Pinned pieces cant block check
+        let moving_color = if whites_turn { self.white_pieces } else { self.black_pieces };
+        let opponent_mask = if !whites_turn { self.white_pieces } else { self.black_pieces };
+        let all_mask = self.white_pieces | self.black_pieces;
+        let free_mask = !all_mask;
+        
+        //Pawns
+        fn add_pawn_move(res: u64, move_piece_type: ColoredPieceType, type_field: &[ColoredPieceType; 64], prom_types: [ColoredPieceType; 4], dif: i32, list: &mut ArrayVec<ChessMove, 200>) {
+            const PROM_RANK: u64 = bitboard_helper::RANK_MASKS[0] | bitboard_helper::RANK_MASKS[7];
+                        
+            for index in bitboard_helper::iterate_set_bits(res & !PROM_RANK) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + dif) as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, type_field[target_square as usize]));
+            } 
+            
+            for index in bitboard_helper::iterate_set_bits(res & PROM_RANK) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + dif) as u8);
+                
+                for t in prom_types {
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, type_field[target_square as usize], t));
+                }              
+            }
+        }   
+
+        let ep_mask = if self.en_passant_square == Square::None { 0 } else { self.en_passant_square.bit_board() };
+
+        let pawns = self.pawns & moving_color;
+        let forward_movable_pawns = pawns & vertical_moveable;
+        const PROM_RANK: u64 = bitboard_helper::RANK_MASKS[0] | bitboard_helper::RANK_MASKS[7];
+
+        //println!("Diagonal pins: ");
+        //bitboard_helper::print_bitboard(d_pins);
+
+        let mut move_piece_type = ColoredPieceType::from_pt(PieceType::Pawn, whites_turn);
+
+        let mut res = 0;
+        if whites_turn {
+            const PROM_TYPES: [ColoredPieceType; 4] = [
+                ColoredPieceType::WhiteKnight, 
+                ColoredPieceType::WhiteBishop, 
+                ColoredPieceType::WhiteRook, 
+                ColoredPieceType::WhiteQueen, 
+                ];
+                
+            res = free_mask & (forward_movable_pawns << 8);
+            //Single move forward
+            for index in bitboard_helper::iterate_set_bits(res & !PROM_RANK) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 - 8) as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            } 
+            
+            for index in bitboard_helper::iterate_set_bits(res & PROM_RANK) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 - 8) as u8);
+                
+                for t in PROM_TYPES {
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, ColoredPieceType::None, t));
+                }              
+            }
+
+            //Double move
+            const DOUBLE_MOVE_RANK: u64 = bitboard_helper::RANK_MASKS[3];
+            res = DOUBLE_MOVE_RANK & free_mask & (res << 8);
+            for index in bitboard_helper::iterate_set_bits(res) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 - 16) as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            }
+
+            //Attack right
+            res = bitboard_helper::RIGHT_MOVE_MASK[1] & ((pawns & pos_diagonal_moveable) << 9);
+            add_pawn_move(opponent_mask & res, 
+                move_piece_type, &self.type_field, PROM_TYPES, -9, &mut list);
+            
+            //Ep right
+            for index in bitboard_helper::iterate_set_bits(ep_mask & res) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 - 9) as u8);
+                
+                let m = ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None);
+
+                if self.move_is_legal(m){
+                    list.push(m);
+                }
+            } 
+
+            //Attack left
+            res = bitboard_helper::LEFT_MOVE_MASK[1] & ((pawns & neg_diagonal_moveable) << 7);
+            add_pawn_move(opponent_mask & res, 
+                move_piece_type, &self.type_field, PROM_TYPES, -7, &mut list);
+            
+            //Ep left
+            for index in bitboard_helper::iterate_set_bits(ep_mask & res) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 - 7) as u8);
+                
+                let m = ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None);
+
+                if self.move_is_legal(m){
+                    list.push(m);
+                }
+            }
+        }
+        else {
+            const PROM_TYPES: [ColoredPieceType; 4] = [
+                ColoredPieceType::BlackKnight, 
+                ColoredPieceType::BlackBishop, 
+                ColoredPieceType::BlackRook, 
+                ColoredPieceType::BlackQueen, 
+                ];
+                
+            res = free_mask & (forward_movable_pawns >> 8);
+            //Single move forward
+            for index in bitboard_helper::iterate_set_bits(res & !PROM_RANK) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + 8) as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            } 
+            
+            for index in bitboard_helper::iterate_set_bits(res & PROM_RANK) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + 8) as u8);
+                
+                for t in PROM_TYPES {
+                    list.push(ChessMove::new_pawn_move(start_square, target_square, move_piece_type, ColoredPieceType::None, t));
+                }              
+            }
+
+            //Double move
+            const DOUBLE_MOVE_RANK: u64 = bitboard_helper::RANK_MASKS[4];
+            res = DOUBLE_MOVE_RANK & free_mask & (res >> 8);
+            for index in bitboard_helper::iterate_set_bits(res) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + 16) as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            }
+
+            //Attack right
+            res = bitboard_helper::RIGHT_MOVE_MASK[1] & ((pawns & neg_diagonal_moveable) >> 7);
+            add_pawn_move(opponent_mask & res, 
+                move_piece_type, &self.type_field, PROM_TYPES, 7, &mut list);
+            
+            //Ep right
+            for index in bitboard_helper::iterate_set_bits(ep_mask & res) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + 7) as u8);
+                
+                let m = ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None);
+
+                if self.move_is_legal(m){
+                    list.push(m);
+                }
+            } 
+
+            //Attack left
+            res = bitboard_helper::LEFT_MOVE_MASK[1] & ((pawns & pos_diagonal_moveable) >> 9);
+            add_pawn_move(opponent_mask & res, 
+                move_piece_type, &self.type_field, PROM_TYPES, 9, &mut list);
+            
+            //Ep left
+            for index in bitboard_helper::iterate_set_bits(ep_mask & res) {
+                let target_square = Square::from_u8(index as u8);
+                let start_square = Square::from_u8((index as i32 + 9) as u8);
+                
+                let m = ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None);
+
+                if self.move_is_legal(m){
+                    list.push(m);
+                }
+            }
+        }
+       
+        //Knights
+        move_piece_type = ColoredPieceType::from_pt(PieceType::Knight, whites_turn);   
+        for start_index in bitboard_helper::iterate_set_bits(self.knights & moving_color & !all_pins) {
+            let start_square = Square::from_u8(start_index as u8);
+
+            for target_index in bitboard_helper::iterate_set_bits(
+                bitboard_helper::KNIGHT_ATTACKS[start_square as usize] & !moving_color) {
+
+                let target_square = Square::from_u8(target_index as u8);
+
+                let target_piece_type = self.type_field[target_square as usize];
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
+            }
+        }
+
+        
+        //Slider
+        //Diagonal
+        for start_index in bitboard_helper::iterate_set_bits(self.diagonal_sliders & moving_color & pos_diagonal_moveable) {
+            let bb = 1 << start_index;
+            let start_square = Square::from_u8(start_index as u8);
+            move_piece_type = self.type_field[start_index as usize];
+
+            res = bitboard_helper::fill_up_right(bb, free_mask);
+            res = bitboard_helper::fill_down_left(res, free_mask);
+            
+            for target_index in bitboard_helper::iterate_set_bits(res & !bb) {
+                let target_square = Square::from_u8(target_index as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            }
+
+            res = bitboard_helper::capture_up_right(res, opponent_mask) | 
+                bitboard_helper::capture_down_left(res, opponent_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res) {
+                let target_square = Square::from_u8(target_index as u8);
+                let target_piece_type = self.type_field[target_square as usize];
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
+            }   
+        }
+
+        for start_index in bitboard_helper::iterate_set_bits(self.diagonal_sliders & moving_color & neg_diagonal_moveable) {
+            let bb = 1 << start_index;
+            let start_square = Square::from_u8(start_index as u8);
+            move_piece_type = self.type_field[start_index as usize];
+
+            res = bitboard_helper::fill_down_right(bb, free_mask);
+            res = bitboard_helper::fill_up_left(res, free_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res & !bb) {
+                let target_square = Square::from_u8(target_index as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            }
+
+            res = bitboard_helper::capture_down_right(res, opponent_mask) | 
+                bitboard_helper::capture_up_left(res, opponent_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res) {
+                let target_square = Square::from_u8(target_index as u8);
+                let target_piece_type = self.type_field[target_square as usize];
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
+            }   
+        }
+
+        //Orthogonal
+        for start_index in bitboard_helper::iterate_set_bits(self.orthogonal_sliders & moving_color & vertical_moveable) {
+            let bb = 1 << start_index;
+            let start_square = Square::from_u8(start_index as u8);
+            move_piece_type = self.type_field[start_index as usize];
+
+            res = bitboard_helper::fill_up(bb, free_mask);
+            res = bitboard_helper::fill_down(res, free_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res & !bb) {
+                let target_square = Square::from_u8(target_index as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            }
+
+            res = bitboard_helper::capture_up(res, opponent_mask) | 
+                bitboard_helper::capture_down(res, opponent_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res) {
+                let target_square = Square::from_u8(target_index as u8);
+                let target_piece_type = self.type_field[target_square as usize];
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
+            }   
+        }
+
+        for start_index in bitboard_helper::iterate_set_bits(self.orthogonal_sliders & moving_color & horizontal_moveable) {
+            let bb = 1 << start_index;
+            let start_square = Square::from_u8(start_index as u8);
+            move_piece_type = self.type_field[start_index as usize];
+
+            res = bitboard_helper::fill_left(bb, free_mask);
+            res = bitboard_helper::fill_right(res, free_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res & !bb) {
+                let target_square = Square::from_u8(target_index as u8);
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, ColoredPieceType::None));
+            }
+
+            res = bitboard_helper::capture_right(res, opponent_mask) | 
+                bitboard_helper::capture_left(res, opponent_mask);
+
+            for target_index in bitboard_helper::iterate_set_bits(res) {
+                let target_square = Square::from_u8(target_index as u8);
+                let target_piece_type = self.type_field[target_square as usize];
+                
+                list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
+            }   
+        }
+
+        for m in self.generate_legal_king_moves(whites_turn) {
+            list.push(m);
+        }
+
+        move_piece_type = ColoredPieceType::from_pt(PieceType::King, whites_turn);   
+
+        //Castles
+        //not in check
+        if whites_turn {
+            if self.white_queen_castle {
+                if  bitboard_helper::WHITE_QUEEN_CASTLE_MASK & all_mask == 0 && 
+                    !self.square_is_attacked_by(!whites_turn, Square::D1) && 
+                    !self.square_is_attacked_by(!whites_turn, Square::C1) {
+                    list.push(ChessMove::new_move(king_square, Square::C1, move_piece_type, ColoredPieceType::None));
+                }
+            }
+
+            if self.white_king_castle {
+                if  bitboard_helper::WHITE_KING_CASTLE_MASK & all_mask == 0 && 
+                    !self.square_is_attacked_by(!whites_turn, Square::F1) && 
+                    !self.square_is_attacked_by(!whites_turn, Square::G1) {
+                    list.push(ChessMove::new_move(king_square, Square::G1, move_piece_type, ColoredPieceType::None));
+                }
+            }
+        }
+        else {
+            if self.black_queen_castle {
+                if  bitboard_helper::BLACK_QUEEN_CASTLE_MASK & all_mask == 0 && 
+                    !self.square_is_attacked_by(!whites_turn, Square::D8) && 
+                    !self.square_is_attacked_by(!whites_turn, Square::C8) {
+                    list.push(ChessMove::new_move(king_square, Square::C8, move_piece_type, ColoredPieceType::None));
+                }
+            }
+
+            if self.black_king_castle {
+                if  bitboard_helper::BLACK_KING_CASTLE_MASK & all_mask == 0 && 
+                    !self.square_is_attacked_by(!whites_turn, Square::F8) && 
+                    !self.square_is_attacked_by(!whites_turn, Square::G8) {
+                    list.push(ChessMove::new_move(king_square, Square::G8, move_piece_type, ColoredPieceType::None));
+                }
+            }
+        }
+        
 
         return list;
     }

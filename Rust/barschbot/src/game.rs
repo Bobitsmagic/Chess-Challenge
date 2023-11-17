@@ -37,7 +37,7 @@ impl GameState {
 }
 
 pub struct Game {
-    board_history: HashSet<u128>,
+    board_history: HashSet<u64>,
     board_stack: Vec<BitBoard>,
     move_stack: Vec<ChessMove>,
     dmc_stack: Vec<u32>,
@@ -109,7 +109,7 @@ impl  Game {
         //update stacks
         self.dmc_stack.push(dmc);
         self.board_stack.push(self.board);
-        self.board_history.insert(self.board.get_hash_u128());
+        self.board_history.insert(self.board.get_zoberist_hash());
         self.move_stack.push(m);
 
         //make move
@@ -124,7 +124,7 @@ impl  Game {
 
         self.board = self.board_stack.pop().unwrap();
 
-        self.board_history.remove(&self.board.get_hash_u128());
+        self.board_history.remove(&self.board.get_zoberist_hash());
         self.move_stack.pop();
 
         self.moves_generated = false;
@@ -174,7 +174,7 @@ impl  Game {
             }
         }   
 
-        if self.board_history.contains(&self.board.get_hash_u128()) {
+        if self.board_history.contains(&self.board.get_zoberist_hash()) {
             return GameState::Repetition;
         }
 

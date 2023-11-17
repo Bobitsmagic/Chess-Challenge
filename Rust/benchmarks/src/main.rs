@@ -1,13 +1,16 @@
 use std::time::Instant;
+use core::arch::x86_64::_pext_u64;
 
 fn main() {
-    for _ in 0..10 {
-        let start = Instant::now();
-        let res = count_indices(); 
-        let duration = start.elapsed();
-        println!("Result: {}", res);
-        println!("Time: {:?}", duration);
-    }
+    
+
+    //for _ in 0..10 {
+    //    let start = Instant::now();
+    //    let res = count_indices(); 
+    //    let duration = start.elapsed();
+    //    println!("Result: {}", res);
+    //    println!("Time: {:?}", duration);
+    //}
 
 }
 
@@ -22,14 +25,18 @@ pub fn count_ones() -> u64 {
 
 pub fn count_indices() -> u64 {
     let mut sum = 0_u64;
-    for i in 0..(1_u64 << 25) {
+    for i in 0..(1_u64 << 27) {
         let mut val = 1_u64 << ((i * 1337) & 63);
         val |= 1_u64 << ((i * 34653464) & 63);
         val |= 1_u64 << ((i * 6634533) & 63);
 
         while val != 0 {
             let index = val.trailing_zeros();
-            val ^= 1_u64 << index;
+            //val = (val - 1) & val;
+            unsafe {
+                //val = _blsr_u64(val);
+            }
+            val ^= 1 << index;
             sum += index as u64;
         }
 
