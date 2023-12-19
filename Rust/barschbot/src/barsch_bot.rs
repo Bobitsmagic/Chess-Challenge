@@ -1,13 +1,15 @@
-use std::{time::Instant, cmp, array};
+use std::{time::Instant, cmp, collections::HashMap};
 
 use arrayvec::ArrayVec;
 
-use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, constants::{BLACK_PAWN, self}, piece_list::{self, PieceList}, bitboard_helper, piece_type::PieceType, colored_piece_type::ColoredPieceType, square::Square, bit_board::BitBoard, perceptron::Perceptron, 
+use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, piece_type::PieceType, bit_board::BitBoard, 
     evaluation::*, endgame_table::{self, EndgameTable, UNDEFINED}};
 
 const MAX_VALUE: i32 = 2_000_000_000;
-const MAX_DEPTH: u8 = 8;
-const MAX_QUIESCENCE_DEPTH: u8 = 5;
+const MAX_DEPTH: u8 = 4;
+const MAX_QUIESCENCE_DEPTH: u8 = 10;
+const NULL_MOVE_REDUCTION: u8 = 1;
+const DO_NM_PRUNING: bool = false;
 
 pub fn get_best_move(game: &mut Game, table: &EndgameTable) -> ChessMove{
     if game.get_board().get_all_piece_count() <= 4 {
@@ -17,6 +19,7 @@ pub fn get_best_move(game: &mut Game, table: &EndgameTable) -> ChessMove{
 
     return iterative_deepening(game, MAX_DEPTH, table).0; 
 }
+//r3k2r/1pp1p1bp/p1nqb1p1/5p2/3P4/P1PBQN2/1P1B1PPP/R3K2R b KQkq -
 
 pub fn end_game_move(game: &mut Game, table: &EndgameTable) -> ChessMove {
     if game.get_board().get_all_piece_count() > 4 {
@@ -88,12 +91,14 @@ pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (boo
 pub fn iterative_deepening(game: &mut Game, max_depth: u8, table: &EndgameTable) -> (ChessMove, i32) {
     println!("Evaluating: {}", game.get_board().get_fen());
 
+    let mut map = HashMap::new();
+
     static_eval(game, true);
 
     let mut start = Instant::now();
     let mut pair: (ArrayVec<ChessMove, 30>, i32) = (ArrayVec::new(), 0);
     for md in 1..(max_depth + 1) {
-        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table);
+        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table, &mut map);
         //pair = negation_max(game, i);
 
         let duration = start.elapsed();
@@ -134,32 +139,16 @@ pub fn iterative_deepening(game: &mut Game, max_depth: u8, table: &EndgameTable)
     return (*pair.0.last().unwrap(), pair.1);
 }
 
-pub fn negation_max(game: &mut Game, depth_left: u8) -> (ChessMove, i32) {
-    if depth_left == 0 {
-        return (chess_move::NULL_MOVE, 
-            static_eval(game, false));
-    }
-    
-    let mut best_value = i32::MIN;
-    let mut best_move = chess_move::NULL_MOVE;
-
-    for m in game.get_legal_moves() {
-        game.make_move(m);
-
-        let value = -negation_max(game,  depth_left - 1).1;
-        if value > best_value {
-            best_value = value;
-            best_move = m;
-        }
-        
-        game.undo_move();
-    }    
-
-    return (best_move, best_value);
-}
-
-fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
+fn move_sorter(list: &mut ArrayVec<ChessMove, 200>, prev_best: ChessMove) {
     list.sort_unstable_by(|a, b| {
+        if *a == prev_best {
+            return std::cmp::Ordering::Less;
+        }
+
+        if *b == prev_best {
+            return std::cmp::Ordering::Greater;
+        }
+
         if a.is_direct_capture() != b.is_direct_capture() {
             return b.is_direct_capture().cmp(&a.is_direct_capture());
         }
@@ -184,12 +173,10 @@ fn move_sorter(list: &mut ArrayVec<ChessMove, 200>) {
     });
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable) -> (ArrayVec<ChessMove, 30>, i32) {        
-
-
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, i32)>) -> (ArrayVec<ChessMove, 30>, i32) {        
     if depth_left == 0 {
         //return (chess_move::NULL_MOVE, static_eval(game));
-        return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH, table);
+        return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH, table, map);
     }
 
     if game.get_game_state() != GameState::Undecided {
@@ -201,17 +188,46 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_lef
         return (ArrayVec::new(), pair.1);
     }
 
+    let mut hist_depth_left = 0_u8;
+    let mut hist_move = chess_move::NULL_MOVE;
+    let mut hist_value = i32::MAX;
+
+    let hash = game.get_board().get_zoberist_hash();
+    if map.contains_key(&hash) {
+        (hist_depth_left, hist_move, hist_value) = map[&hash];
+
+        if hist_depth_left >= depth_left {
+            return (ArrayVec::new(), hist_value);
+        }
+    }
+
+    if DO_NM_PRUNING && !game.get_board().in_check() && !game.last_move_is_null_move() {  
+        let mut dl = 0;
+        if depth_left > NULL_MOVE_REDUCTION + 1 {
+            dl = depth_left - NULL_MOVE_REDUCTION -  1;
+        }
+        
+        game.make_move(chess_move::NULL_MOVE);
+        let (_, mut value) = alpha_beta_nega_max(game, -beta, -beta + 1,  dl, table, map);
+        game.undo_move();
+
+        value = -value;
+        if value >= beta {
+            return (ArrayVec::new(), value);
+        }
+    }
+
     let mut best_line = ArrayVec::new();
 
     let mut list = game.get_legal_moves();
 
-    move_sorter(&mut list);
+    move_sorter(&mut list, hist_move);
 
     for m in  list {
         
         game.make_move(m);
 
-        let (line, mut value) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table);
+        let (line, mut value) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map);
 
         game.undo_move();
 
@@ -229,16 +245,31 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_lef
         }
     }    
 
+    if best_line.len() > 0 {
+        if map.contains_key(&hash) {
+            *map.get_mut(&hash).unwrap() = (depth_left, *best_line.last().unwrap(), alpha);
+        }
+        else {
+            map.insert(hash, (depth_left, *best_line.last().unwrap(), alpha));
+        }
+    }
+    
+
     return (best_line, alpha);
 }
 
-pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable) -> (ArrayVec<ChessMove, 30>, i32) {
+pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, i32)>) -> (ArrayVec<ChessMove, 30>, i32) {
     
     let board = game.get_board();
 
     let pair = get_relative_endgame_eval(&game.get_board(), table);
     if pair.0 {
         return (ArrayVec::new(), pair.1);
+    }
+
+    
+    if game.get_game_state() == GameState::Undecided && board.in_check() {
+        return check_avoid_search(game, alpha, beta, depth_left, table, map);
     }
     
     let stand_pat = static_eval(game, false);
@@ -266,7 +297,20 @@ pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, ta
 
     let mut list = game.get_legal_moves();
 
-    move_sorter(&mut list);
+
+    let mut hist_depth_left = 0_u8;
+    let mut hist_move = chess_move::NULL_MOVE;
+    let mut hist_value = i32::MAX;
+
+    let hash = game.get_board().get_zoberist_hash();
+    if map.contains_key(&hash) {
+        (hist_depth_left, hist_move, hist_value) = map[&hash];
+
+        if hist_depth_left >= depth_left {
+            return (ArrayVec::new(), hist_value);
+        }
+    }
+    move_sorter(&mut list, hist_move);
 
     //[TODO] quiescence search move gen
     for m in  list {
@@ -276,7 +320,55 @@ pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, ta
         }
 
         game.make_move(m);
-        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1, table);
+        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1, table, map);
+        game.undo_move();
+        
+        value = -value;
+        
+        if value >= beta {
+            return (ArrayVec::new(), beta);
+        }
+
+        if value > alpha {
+            alpha = value;
+            best_line = line;
+
+            best_line.push(m);
+        }
+    }    
+
+    return (best_line, alpha);
+}
+
+pub fn check_avoid_search(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, i32)>) -> (ArrayVec<ChessMove, 30>, i32) {
+    
+    let pair = get_relative_endgame_eval(&game.get_board(), table);
+    if pair.0 {
+        return (ArrayVec::new(), pair.1);
+    }
+    
+    let mut best_line = ArrayVec::new();
+
+    let mut list = game.get_legal_moves();
+
+    let mut hist_depth_left = 0_u8;
+    let mut hist_move = chess_move::NULL_MOVE;
+    let mut hist_value = i32::MAX;
+
+    let hash = game.get_board().get_zoberist_hash();
+    if map.contains_key(&hash) {
+        (hist_depth_left, hist_move, hist_value) = map[&hash];
+
+        if hist_depth_left >= depth_left {
+            return (ArrayVec::new(), hist_value);
+        }
+    }
+
+    move_sorter(&mut list, hist_move);
+
+    for m in  list {
+        game.make_move(m);
+        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left, table, map);
         game.undo_move();
         
         value = -value;

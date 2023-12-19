@@ -1,6 +1,6 @@
 use glutin_window;
 use graphics;
-use opengl_graphics;
+use opengl_graphics::{self, GlyphCache};
 use piston;
 use find_folder;
 
@@ -14,14 +14,16 @@ use crate::chess_move::ChessMove;
 use crate::colored_piece_type::ColoredPieceType;
 use crate::game::Game;
 use crate::square::Square;
+use crate::zoberist_hash;
 
 pub struct App {
     opengl: OpenGL,
     window: PistonWindow,
     textures: Vec<G2dTexture>,
+    
 }
 
-const SIDE_LENGTH: u32 = 600;
+const SIDE_LENGTH: u32 = 1200;
 
 impl App {
     pub fn new() -> Self {
@@ -58,16 +60,25 @@ impl App {
             textures.push(texture);
         }
 
+
+        
+        
         return App { opengl, window, textures };
     }
-
+    
     pub fn render_board(&mut self, type_field: &[ColoredPieceType; 64], lm: ChessMove) -> bool {
         use graphics::*;
-
+        
         const LIGHT_SQUARE: [f32; 4] = [240.0 / 255.0, 217.0 / 255.0, 181.0 / 255.0, 1.0];
         const DARK_SQUARE: [f32; 4] = [181.0 / 255.0, 136.0 / 255.0, 99.0 / 255.0, 1.0];
         const LIGHT_MOVE_SQUARE: [f32; 4] = [205.0 / 255.0, 210.0 / 255.0, 106.0 / 255.0, 1.0];
         const DARK_MOVE_SQUARE: [f32; 4] = [170.0 / 255.0, 162.0 / 255.0, 58.0 / 255.0, 1.0];
+        const FILE_NAMES: [&str; 8] = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        
+        let assets = find_folder::Search::ParentsThenKids(3, 3)
+            .for_folder("textures").unwrap();
+        
+        //let mut glyph_cache = GlyphCache::new("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\textures\\FiraSans-Regular.ttf", (), TextureSettings::new()).unwrap();
 
         let side_length = self.window.size().width / 8.0;
         let square = rectangle::square(0.0, 0.0, side_length);
@@ -105,8 +116,24 @@ impl App {
                         }   
                     }
                 }
-    
+
+                
+                //for i in 0..8 {
+                //    let transform = c.transform
+                //    .trans(i as f64 * side_length, 7 as f64 * side_length);
+                //    
+                //    text::Text::new_color([1.0, 1.0, 1.0, 1.0], 20)
+                //    .draw(
+                //        FILE_NAMES[i as usize],
+                //        &mut glyph_cache,
+                //        &c.draw_state,
+                //        transform,
+                //        g,
+                //    )
+                //    .unwrap();
+                //}
             });
+
 
             
 

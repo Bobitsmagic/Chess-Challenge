@@ -26,8 +26,22 @@ impl ChessMove {
         return PieceType::from_cpt(self.move_piece_type) == PieceType::King && (self.start_square as u8).abs_diff(self.target_square as u8) == 2 
     }
 
+    pub fn is_capture(&self) -> bool {
+        return self.is_direct_capture() || self.is_en_passant();
+    }
+
     pub fn is_direct_capture(&self) -> bool {
         return self.capture_piece_type != ColoredPieceType::None;
+    }
+
+    pub fn is_null_move(&self) -> bool {
+        return *self == NULL_MOVE;
+    }
+
+    pub fn is_attack(&self) -> bool {
+        //Not (vertical pawn move || castle move)
+        return !((PieceType::from_cpt(self.move_piece_type) == PieceType::Pawn && self.start_square.file() == self.target_square.file()) ||
+        (PieceType::from_cpt(self.move_piece_type) == PieceType::King && (self.start_square as u8).abs_diff(self.target_square as u8) == 2));
     }
 
     pub fn is_promotion(&self) -> bool {

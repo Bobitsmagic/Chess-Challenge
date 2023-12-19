@@ -1,11 +1,23 @@
-use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper, endgame_table::EndgameTable};
+use core::panic;
+use std::collections::HashMap;
+
+use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper, endgame_table::EndgameTable, square::{self, Square}};
 
 pub const CHECKMATE_VALUE: i32 = 1_000_000_000;
 //                              Pawn, Knight, Bishop, Rook, Queen, King
-const PIECE_MOBILITY_SCORE: [i32; 6] = [0, 100, 70, 50, 20, 0];
+const PIECE_MOBILITY_SCORE: [i32; 6] = [0, 80, 70, 50, 20, 0];
+const PIECE_ATTACK_SCORE: [i32; 6] = [100, 22, 20, 15, 5, 1];
+const SQUARE_CONTROL_SCORE: i32 = 50;
 
 pub const PIECE_VALUES: [i32; 6] = [1000, 2800, 3200, 5000, 9000, CHECKMATE_VALUE];
-const PAWN_PUSH_BONUS: [i32; 8] = [0, 0, 30, 50, 80, 150, 500, 0];
+const PAWN_PUSH_BONUS: [i32; 8] = [0, 0, 50, 70, 100, 150, 500, 0];
+
+const EARLY_GAME_SQUARE_ATTACK_FACTOR: [i32; 16] = [
+    0, 0, 0, 0, 
+    0, 0, 0, 0,
+    10, 30, 50, 80,
+    20, 30, 100, 150,
+];
 
 const PASSED_PAWN_VALUE: i32 = 100;
 const DOUBLED_PAWN_PENALTY: i32 = -150;
@@ -17,10 +29,7 @@ const PIECE_CENTER_ATTACK_VALUE: i32 = 20;
 const KING_ATTACK_PENALTY: i32 = -69;
 const KING_DEFENCE_VALUE: i32 = 40;
 
-//const DO_PRINT: bool = false;
-
-
-//legal move gen with defences (own pieces, both sides, no legallity check(?))
+const ATTACK_FACTOR: i32 = 30;
 
 pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
     let gs = game.get_game_state();
@@ -46,6 +55,12 @@ pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
 
     //whites perspective
     let board = game.get_board();
+
+    if board.in_check() {
+        println!("Check");
+        return 1337;
+    }
+
     let mut sum: i32 = 0;
 
     //Piece values
@@ -71,8 +86,50 @@ pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
     sum += dif_sum;
     dif_sum = 0;
 
-    let white_list = board.generate_legal_moves(true);
-    let black_list = board.generate_legal_moves(false);
+    let white_list = board.generate_legal_moves_eval(true);
+    let black_list = board.generate_legal_moves_eval(false);
+
+    let mut capture_count = [0_i8; 64];
+    let mut attack_score = [0_i32; 64];
+
+    for m in &white_list {
+        if m.is_capture(){
+            capture_count[m.target_square as usize] += 1;
+        }
+
+        if m.is_attack() {
+            attack_score[m.target_square as usize] += PIECE_ATTACK_SCORE[PieceType::from_cpt(m.move_piece_type) as usize];
+        }
+    }
+    for m in &black_list {
+        if m.is_capture() {
+            capture_count[m.target_square as usize] -= 1;
+        }
+
+        if m.is_attack() {
+            attack_score[m.target_square as usize] -= PIECE_ATTACK_SCORE[PieceType::from_cpt(m.move_piece_type) as usize];
+        }
+    }
+
+    fn get_square_attack_factor(square: Square) -> i32 {
+        let mut x = square.file();
+        let mut y = square.rank();
+
+        if x >= 4 {
+            x = 7 - x;
+        }
+
+        if y >= 4 {
+            y = 7 - y;
+        }
+
+        return EARLY_GAME_SQUARE_ATTACK_FACTOR[(x + y * 4) as usize];
+    }
+
+    for i in 0..64 {        
+        sum += attack_score[i].signum() * get_square_attack_factor(Square::from_u8(i as u8)); 
+    }
+
 
     if do_print {
         print!("{}[", white_list.len());
@@ -105,10 +162,8 @@ pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
         dif_sum += mob_count[i] * PIECE_MOBILITY_SCORE[i];
 
         if do_print {
-            if do_print {
-                println!("\t{} -> {} * {} \t= {}", ColoredPieceType::from_u8(i as u8 * 2).get_char(), 
-                    mob_count[i], PIECE_MOBILITY_SCORE[i as usize], mob_count[i] * PIECE_MOBILITY_SCORE[i]);
-            }
+            println!("\t{} -> {} * {} \t= {}", ColoredPieceType::from_u8(i as u8 * 2).get_char(), 
+                mob_count[i], PIECE_MOBILITY_SCORE[i as usize], mob_count[i] * PIECE_MOBILITY_SCORE[i]);
         }
     }
 
@@ -125,11 +180,14 @@ pub fn static_eval(game: &mut Game, do_print: bool) -> i32 {
         println!("Total: {}", sum);
     }
 
-    if sum == 0 {
+    if sum.abs() < 7 {
         sum = 7;
     }
 
-    return sum * if game.is_whites_turn() { 1 } else { -1 };
+
+    let ret = sum * if game.is_whites_turn() { 1 } else { -1 };
+
+    return ret;
 }
 
 pub fn eval_pawn_structure(game: &Game, do_print: bool) -> i32 {

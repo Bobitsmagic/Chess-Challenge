@@ -1,12 +1,8 @@
-use std::{collections::HashMap, fs::{OpenOptions, File}, io::{BufWriter, Write, Read}};
-
-use arrayvec::ArrayVec;
-use piston::controller;
-use rayon::prelude::{*, IndexedParallelIterator};
+use std::{collections::HashMap, fs::File, io::{Write, Read}};
 
 use std::{thread, time};
 
-use crate::{colored_piece_type::{ColoredPieceType, self}, piece_type::PieceType, bit_board::BitBoard, square::{Square, self}, constants, zoberist_hash, chess_move::{ChessMove, self}, game::GameState};
+use crate::{colored_piece_type::ColoredPieceType, piece_type::PieceType, bit_board::BitBoard, square::Square, constants, chess_move };
 
 pub fn generate_type_fields(max_piece_count: usize) -> Vec<Vec<[ColoredPieceType; 64]>> {
     assert!(max_piece_count >= 2);
@@ -753,7 +749,8 @@ impl EndgameTable {
     }
 
     pub fn get_score(&self, board: &BitBoard) -> i8 {
-        let sym = BitBoard::from_board_state(& board.get_board_state().get_lowest_symmetry());                               
+        let sym = BitBoard::from_board_state(& board.get_board_state().get_lowest_symmetry());      
+
         let mut s = self.table_map[&sym.get_zoberist_hash()];
 
         if s == UNDEFINED {

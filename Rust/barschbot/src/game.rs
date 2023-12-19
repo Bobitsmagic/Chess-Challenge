@@ -96,9 +96,20 @@ impl  Game {
         return self.board;
     }
 
+    pub fn last_move_is_null_move(&self) -> bool {
+        if self.move_stack.len() == 0 {
+            return false;
+        }
+        return self.move_stack.last().unwrap().is_null_move();
+    }
+
     pub fn make_move(&mut self, m: ChessMove) {
 
         assert!(self.get_game_state() == GameState::Undecided);
+
+        if m.is_null_move() {
+            assert!(!self.board.in_check());
+        }
         
         let mut dmc = self.fifty_move_counter();
         dmc += 1;

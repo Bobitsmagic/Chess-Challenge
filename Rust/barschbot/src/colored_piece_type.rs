@@ -118,6 +118,22 @@ impl ColoredPieceType {
         return (*self as u8) & 1 == 0;
     }
 
+    pub fn is_slider(&self) -> bool {
+        return (*self) as u8 >= 4 && (*self as u8) < 10;
+    }
+
+    pub fn is_orthogonal_slider(&self) -> bool {
+        return (*self) as u8 >= 6 && (*self as u8) < 10;
+    }
+
+    pub fn is_diagonal_slider(&self) -> bool {
+        return match PieceType::from_cpt(*self) {
+            PieceType::Bishop => true,
+            PieceType::Queen => true,
+            _ => false
+        }
+    }
+
     pub fn get_char(&self) -> &char {
         return &PIECE_CHAR[*self as usize];
     }

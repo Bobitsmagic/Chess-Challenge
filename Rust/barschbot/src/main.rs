@@ -19,7 +19,7 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
-use crate::bitboard_helper::{RANK_MASKS, FILE_MASKS, ORHTOGONAL_MASK, DIAGONAL_MASK};
+use crate::bitboard_helper::{RANK_MASKS, FILE_MASKS};
 use crate::endgame_table::EndgameTable;
 use crate::square::Square;
 
@@ -38,75 +38,20 @@ mod colored_piece_type;
 mod square;
 //mod dataset;
 mod perceptron;
-mod delphin_bot;
 mod visualizer;
 mod evaluation;
 mod endgame_table;
-mod magic_masks;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
-    //play_game();
-    
-    let mut result = Vec::new();
-    for i in 0..64 {
-        let moves = 0 as u64;
-        
-        let mask = bitboard_helper::DIAGONAL_MASK[i];
-        let vec: Vec<u32> = bitboard_helper::iterate_set_bits(mask).collect();
-        let mut list = vec![0_u64; 1 << vec.len()];      
-             
-        //println!("Mask: ");
-        //bitboard_helper::print_bitboard(mask);
-        
-        for index in 0..(1_u64 << vec.len()) {
-            let mut blocker = 0_u64;
 
-            for j in 0..vec.len() {
-                if bitboard_helper::get_bit(index, Square::from_u8(j as u8)) {
-                    blocker |= 1 << vec[j];
-                }
-            }
-
-            let pos = 1 << i;
-            let m = (bitboard_helper::fill_down_right(pos, !blocker) | 
-                bitboard_helper::fill_up_right(pos, !blocker) |
-                bitboard_helper::fill_down_left(pos, !blocker) |
-                bitboard_helper::fill_up_left(pos, !blocker));
-
-            let ma = bitboard_helper::capture_down_right(m, blocker) | 
-                bitboard_helper::capture_down_left(m, blocker) | 
-                bitboard_helper::capture_up_right(m, blocker) | 
-                bitboard_helper::capture_up_left(m, blocker);
-
-            //println!("Blocker: ");
-            //bitboard_helper::print_bitboard(blocker);
-            //println!("Moves: ");
-            //bitboard_helper::print_bitboard(m & !(1 << i));
-            //println!("Caps: ");
-            //bitboard_helper::print_bitboard(ma);
-
-            list[bitboard_helper::order_bits(blocker, mask) as usize] = ma | m;
-        }
-
-        print!("{} ", list.len());
-
-        result.push(list);
-
-    }
-
-    for v in result {
-        print!("&[");
-
-        for val in v {
-            print!("{:#0x}, ", val);
-        }
-
-        println!("],");
-    }
+    println!("https://lichess.org/editor/r6r/2pk1pp1/4P3/p6p/P1bp4/2q2NQP/2P3P1/2BK3R_b_-_-_0_1?color=white");
     //check_all_perft_board();
+
+    //play_game_player();
+    play_game();
 
     println!("Done");
 }
@@ -115,8 +60,9 @@ fn play_game() {
     let mut app = App::new();
     let mut game = Game::get_start_position();
 
+    //game = Game::from_fen("2r2r2/4bp1k/p3p1pp/1p1p4/3P3P/P3QN2/2PK1P2/6R1 b - -");
 
-    game = Game::from_fen("8/8/3k4/1ppp4/8/8/3B1N2/2K5 w - - 0 1");
+    //game.make_move(ChessMove::new_move(Square::E2, Square::E4, colored_piece_type::ColoredPieceType::WhitePawn, colored_piece_type::ColoredPieceType::None));
 
     for i in 0..10 {
         app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
@@ -139,8 +85,70 @@ fn play_game() {
 
         for i in 0..10 {
             app.render_board(&game.get_board().type_field, cm);
-
         }
+
+        let ten_millis = time::Duration::from_millis(0);
+        thread::sleep(ten_millis);
+
+    }
+    
+    let ten_millis = time::Duration::from_millis(1000);
+    thread::sleep(ten_millis);
+    
+    println!("Result: {}", game.get_game_state().to_string());
+    println!("{}", game.to_string());
+}
+
+fn play_game_player() {
+    let mut app = App::new();
+    let mut game = Game::get_start_position();
+
+
+    //game = Game::from_fen("r1bqkbnr/pppp1ppp/8/3Pn3/8/8/PPP1QPPP/RNB1KBNR b KQkq - 2 5");
+
+    for i in 0..10 {
+        app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
+    }
+
+    let table = EndgameTable::load();
+    println!("Loaded table");
+    //app.read_move();
+
+    while game.get_game_state() == GameState::Undecided {
+        //let cm = barsch_bot::get_best_move(&mut game);
+
+        let pair = app.read_move();
+
+        if game.get_game_state() == GameState::Undecided {
+            let list = game.get_legal_moves();
+
+            for m in list {
+                if m.start_square == pair.0 && 
+                    m.target_square == pair.1 {
+                    game.make_move(m);
+
+                    for i in 0..10 {
+                        app.render_board(&game.get_board().type_field, m);
+                    }
+                    break;
+                }
+            }
+        }
+
+        let cm = barsch_bot::get_best_move(&mut game, &table);      
+        
+        cm.print();
+        println!(" is best move");
+        
+        game.make_move(cm);
+        for i in 0..10 {
+            app.render_board(&game.get_board().type_field, cm);
+        }
+
+
+
+        
+
 
         let ten_millis = time::Duration::from_millis(0);
         thread::sleep(ten_millis);
