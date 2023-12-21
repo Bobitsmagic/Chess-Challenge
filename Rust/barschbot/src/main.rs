@@ -1,4 +1,5 @@
 #![ allow(unused)]
+use bb_settings::{BBSettings, EvalFactors};
 use bit_board::BitBoard;
 use chess_move::ChessMove;
 //use dataset::EvalBoards;
@@ -41,69 +42,84 @@ mod perceptron;
 mod visualizer;
 mod evaluation;
 mod endgame_table;
+mod bb_settings;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
-
-    println!("https://lichess.org/editor/r6r/2pk1pp1/4P3/p6p/P1bp4/2q2NQP/2P3P1/2BK3R_b_-_-_0_1?color=white");
     //check_all_perft_board();
-
+    let table = EndgameTable::load();
+    //let mut app = App::new();
     //play_game_player();
-    play_game();
+    //play_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", &table);
+
+    play_all_fens(&table);
 
     println!("Done");
 }
 
-fn play_game() {
-    let mut app = App::new();
-    let mut game = Game::get_start_position();
-
-    //game = Game::from_fen("2r2r2/4bp1k/p3p1pp/1p1p4/3P3P/P3QN2/2PK1P2/6R1 b - -");
-
-    //game.make_move(ChessMove::new_move(Square::E2, Square::E4, colored_piece_type::ColoredPieceType::WhitePawn, colored_piece_type::ColoredPieceType::None));
+fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings) -> GameState {
+    println!("Playing fen: {}", start_position);
+    let mut game = Game::from_fen(start_position);
 
     for i in 0..10 {
         app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
     }
+    //let ten_millis = time::Duration::from_millis(1000);
+    //thread::sleep(ten_millis);
 
-    let table = EndgameTable::load();
-    println!("Loaded table");
-    //app.read_move();
+    let mut first_player = true;
 
     while game.get_game_state() == GameState::Undecided {
-        //let cm = barsch_bot::get_best_move(&mut game);
-        let cm = barsch_bot::get_best_move(&mut game, &table);
-        
-        //app.read_move();
-        cm.print();
-        println!(" is best move");
+    
+        let set = if first_player { bb_settings_a } else { bb_settings_b };
+
+
+        let cm = barsch_bot::get_best_move(&mut game, table, set);
+        first_player = !first_player;
 
         game.make_move(cm);
-
 
         for i in 0..10 {
             app.render_board(&game.get_board().type_field, cm);
         }
 
-        let ten_millis = time::Duration::from_millis(0);
+        let ten_millis = time::Duration::from_millis(100);
         thread::sleep(ten_millis);
-
     }
     
-    let ten_millis = time::Duration::from_millis(1000);
+    let ten_millis = time::Duration::from_millis(100);
     thread::sleep(ten_millis);
     
     println!("Result: {}", game.get_game_state().to_string());
     println!("{}", game.to_string());
+
+    return game.get_game_state();
+}
+
+fn play_bot_game(start_position: &str, table: &EndgameTable, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings) -> GameState {
+
+    let mut game = Game::from_fen(start_position);
+    let mut first_player = true;
+
+    while game.get_game_state() == GameState::Undecided {
+        let set = if first_player { bb_settings_a } else { bb_settings_b };
+
+        let cm = barsch_bot::get_best_move(&mut game, table, set);
+        first_player = !first_player;
+
+        game.make_move(cm);
+    }
+
+    //println!("{}", game.to_string());
+
+    return game.get_game_state();
 }
 
 fn play_game_player() {
     let mut app = App::new();
-    let mut game = Game::get_start_position();
-
-
+    let mut game = Game::get_start_position(); 
     //game = Game::from_fen("r1bqkbnr/pppp1ppp/8/3Pn3/8/8/PPP1QPPP/RNB1KBNR b KQkq - 2 5");
 
     for i in 0..10 {
@@ -135,7 +151,7 @@ fn play_game_player() {
             }
         }
 
-        let cm = barsch_bot::get_best_move(&mut game, &table);      
+        let cm = barsch_bot::get_best_move(&mut game, &table, &bb_settings::STANDARD_SETTINGS);      
         
         cm.print();
         println!(" is best move");
@@ -143,11 +159,7 @@ fn play_game_player() {
         game.make_move(cm);
         for i in 0..10 {
             app.render_board(&game.get_board().type_field, cm);
-        }
-
-
-
-        
+        }    
 
 
         let ten_millis = time::Duration::from_millis(0);
@@ -160,6 +172,67 @@ fn play_game_player() {
     
     println!("Result: {}", game.get_game_state().to_string());
     println!("{}", game.to_string());
+}
+
+fn play_all_fens(table: &EndgameTable) {
+    let mut fens = Vec::new();
+    let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\Fens.txt").unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    for line in contents.lines() {
+        fens.push(line);
+    }
+
+    let mut app = App::new();
+
+    //5 vs 4 ->  Sum: W 727 L 103 D 170
+    //2 vs 1 ->  Sum: W 730 L 58 D 212
+    //3 vs 2 ->  Sum: W 396 L 46 D 68
+    let a = BBSettings { max_depth: 3, max_quiescence_depth: 2, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
+    let b = BBSettings { max_depth: 3, max_quiescence_depth: 2, eval_factors: bb_settings::MATERIAL_EVAL_FACTORS };
+
+    let mut a_wins = 0;
+    let mut b_wins = 0;
+    let mut draws = 0;
+
+    for fen in fens {
+        //println!("Playing fen: {}", fen);
+
+        //let res = play_bot_game(fen, table, &a, &b);       
+        let res = show_bot_game(fen, table, &mut app, &a, &b);
+        
+        let white_start = Game::from_fen(fen).is_whites_turn();
+
+        if res.is_draw() {
+            draws += 1;
+        }
+        else {
+            if white_start == (res == GameState::WhiteCheckmate) {
+                b_wins += 1;
+            }
+            else {
+                a_wins += 1;
+            }
+        }
+
+        //let res = play_bot_game(fen, table,  &b, &a);       
+        let res = show_bot_game(fen, table, &mut app, &b, &a);
+
+        if res.is_draw() {
+            draws += 1;
+        }
+        else {
+            if white_start != (res == GameState::WhiteCheckmate) {
+                b_wins += 1;
+            }
+            else {
+                a_wins += 1;
+            }
+        }
+
+        println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
+    }
 }
 
 fn check_all_perft_board() {

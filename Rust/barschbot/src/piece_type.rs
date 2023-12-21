@@ -1,6 +1,6 @@
 use crate::colored_piece_type::ColoredPieceType;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PieceType {
     Pawn, Knight, Bishop, Rook, Queen, King, None
 }

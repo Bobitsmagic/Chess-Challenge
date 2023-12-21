@@ -2,22 +2,21 @@ use std::{time::Instant, cmp, collections::HashMap};
 
 use arrayvec::ArrayVec;
 
-use crate::{game::{Game, GameState}, chess_move::{ChessMove, self}, piece_type::PieceType, bit_board::BitBoard, 
-    evaluation::*, endgame_table::{self, EndgameTable, UNDEFINED}};
+use crate::{game::{Game, GameState}, chess_move::{ChessMove, self, NULL_MOVE}, piece_type::PieceType, bit_board::BitBoard, 
+    evaluation::*, endgame_table::{self, EndgameTable, UNDEFINED}, bb_settings::{self, BBSettings}};
 
-const MAX_VALUE: i32 = 2_000_000_000;
-const MAX_DEPTH: u8 = 4;
+const MAX_VALUE: f32 =  f32::INFINITY;
 const MAX_QUIESCENCE_DEPTH: u8 = 10;
 const NULL_MOVE_REDUCTION: u8 = 1;
 const DO_NM_PRUNING: bool = false;
 
-pub fn get_best_move(game: &mut Game, table: &EndgameTable) -> ChessMove{
+pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> ChessMove{
     if game.get_board().get_all_piece_count() <= 4 {
-        println!("Endgame move");
+        //println!("Endgame move");
         return end_game_move(game, table);
     }
 
-    return iterative_deepening(game, MAX_DEPTH, table).0; 
+    return iterative_deepening(game, table, bb_settings).0; 
 }
 //r3k2r/1pp1p1bp/p1nqb1p1/5p2/3P4/P1PBQN2/1P1B1PPP/R3K2R b KQkq -
 
@@ -63,15 +62,19 @@ pub fn end_game_move(game: &mut Game, table: &EndgameTable) -> ChessMove {
     return best_move;
 }
 
-pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (bool, i32) {
+pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (f32, GameState) {
     if board.get_all_piece_count() <= 4 {
         let score = table.get_score(&board);
         
-        let mut res = 0;
+        let mut res = 0.0;
+        let mut gs = GameState::Undecided;
         if score == 0 {
-            res = 0;
+            res = 0.0;
+            gs = GameState::InsuffMaterial;
         }
         else {
+            gs = if score > 0 { GameState::BlackCheckmate } else { GameState::WhiteCheckmate };
+
             if board.is_whites_turn() {
                 res = if score > 0 { CHECKMATE_VALUE } else { -CHECKMATE_VALUE };
             }
@@ -79,67 +82,55 @@ pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (boo
                 res = if score < 0 { CHECKMATE_VALUE } else { -CHECKMATE_VALUE };
             }
 
-            res += (score.signum() * (127 - score.abs())) as i32;
+            for i in 0..(127 - score.abs()) {
+                res *= 0.999;
+            }
         }
 
-        return (true, res);
+        return (res, gs);
     }
 
-    return (false, 0);
+    return (0.0, GameState::Undecided);
 }
 
-pub fn iterative_deepening(game: &mut Game, max_depth: u8, table: &EndgameTable) -> (ChessMove, i32) {
-    println!("Evaluating: {}", game.get_board().get_fen());
-
+pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> (ChessMove, f32) {
+    const PRINT: bool = false;
+    
     let mut map = HashMap::new();
-
-    static_eval(game, true);
+    
+    if PRINT {
+        println!("Evaluating: {}", game.get_board().get_fen());
+        //static_eval(game, &bb_settings.eval_factors, true);
+    }
 
     let mut start = Instant::now();
-    let mut pair: (ArrayVec<ChessMove, 30>, i32) = (ArrayVec::new(), 0);
-    for md in 1..(max_depth + 1) {
-        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table, &mut map);
+    let mut pair: (ChessMove, f32, GameState) = (NULL_MOVE, 0.0, GameState::Undecided);
+    for md in 1..(bb_settings.max_depth + 1) {
+        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table, &mut map, bb_settings);
         //pair = negation_max(game, i);
 
         let duration = start.elapsed();
-        println!("{:?}", duration);
-
-        print!("Depth: {} Eval: ", md);
-
-        match pair.1.abs() {
-            0 => print!("Stalemate"),     
-            2 => print!("Repetition"),     
-            3 => print!("InsuffMaterial"),     
-            5 => print!("50MoveRule"),
-            7 => print!("Even"),
-            _ => print!("{}", pair.1)     
-        }
-
-        print!(" Line: ");
-
-        let mut list = pair.0.clone();
-        list.reverse();
         
-        for i in 0..(cmp::min(list.len(), md as usize)) {
-            list[i].print();
-            print!(" ");
+        if PRINT {
+            println!("{:?}", duration);
+            print!("Depth: {} Eval: ", md);
+            
+            print!("{}", pair.2.to_string());
+    
+            println!(" Move: {}", pair.0.get_uci());
         }
-        print!(" | ");
-        for i in (cmp::min(list.len(), md as usize))..list.len() {
-            list[i].print();
-            print!(" ");
-        }
-        println!();
 
-        if pair.1.abs() > CHECKMATE_VALUE - 1000 {
+        if pair.2.is_checkmate() {
             break;
         }
     }
 
-    return (*pair.0.last().unwrap(), pair.1);
+    return (pair.0, pair.1);
 }
 
 fn move_sorter(list: &mut ArrayVec<ChessMove, 200>, prev_best: ChessMove) {
+    const PIECE_VALUES: [i32; 6] = [100, 280, 320, 500, 900, 100000];
+
     list.sort_unstable_by(|a, b| {
         if *a == prev_best {
             return std::cmp::Ordering::Less;
@@ -173,113 +164,94 @@ fn move_sorter(list: &mut ArrayVec<ChessMove, 200>, prev_best: ChessMove) {
     });
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, i32)>) -> (ArrayVec<ChessMove, 30>, i32) {        
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings) -> (ChessMove, f32, GameState) {        
     if depth_left == 0 {
-        //return (chess_move::NULL_MOVE, static_eval(game));
-        return quiescence(game, alpha, beta, MAX_QUIESCENCE_DEPTH, table, map);
+        return quiescence(game, alpha, beta, settings.max_quiescence_depth, table, map, settings);
     }
 
     if game.get_game_state() != GameState::Undecided {
-        return (ArrayVec::new(), static_eval(game, false));
+        let pair = static_eval(game, &settings.eval_factors, false);
+        return (chess_move::NULL_MOVE, pair.0, pair.1);
     }
     
     let pair = get_relative_endgame_eval(&game.get_board(), table);
-    if pair.0 {
-        return (ArrayVec::new(), pair.1);
+    if pair.1 != GameState::Undecided {
+        return (chess_move::NULL_MOVE, pair.0, pair.1);
     }
-
-    let mut hist_depth_left = 0_u8;
-    let mut hist_move = chess_move::NULL_MOVE;
-    let mut hist_value = i32::MAX;
 
     let hash = game.get_board().get_zoberist_hash();
+    let mut hist_move = chess_move::NULL_MOVE;
     if map.contains_key(&hash) {
-        (hist_depth_left, hist_move, hist_value) = map[&hash];
+        let (hist_depth_left, m , hist_value, hist_gs) = map[&hash];
 
+        hist_move = m;
         if hist_depth_left >= depth_left {
-            return (ArrayVec::new(), hist_value);
+            return (hist_move, hist_value, hist_gs);
         }
     }
 
-    if DO_NM_PRUNING && !game.get_board().in_check() && !game.last_move_is_null_move() {  
-        let mut dl = 0;
-        if depth_left > NULL_MOVE_REDUCTION + 1 {
-            dl = depth_left - NULL_MOVE_REDUCTION -  1;
-        }
-        
-        game.make_move(chess_move::NULL_MOVE);
-        let (_, mut value) = alpha_beta_nega_max(game, -beta, -beta + 1,  dl, table, map);
-        game.undo_move();
-
-        value = -value;
-        if value >= beta {
-            return (ArrayVec::new(), value);
-        }
-    }
-
-    let mut best_line = ArrayVec::new();
+    let mut best_move = NULL_MOVE;
+    let mut best_gs = GameState::Undecided;
 
     let mut list = game.get_legal_moves();
 
     move_sorter(&mut list, hist_move);
 
     for m in  list {
-        
         game.make_move(m);
-
-        let (line, mut value) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map);
-
+        
+        let (line, mut value, gs) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map, settings);
+        
         game.undo_move();
-
+        
         value = -value;
-
+        
         if value >= beta {
-            return (ArrayVec::new(), beta);
+            //println!("Beta cutoff");
+            return (NULL_MOVE, beta, GameState::Undecided);
         }
-
+        
+        //println!("Trying move: {} val {}, alpha {}", m.get_uci(), value, alpha);
         if value > alpha {
             alpha = value;
 
-            best_line = line;
-            best_line.push(m);
+            best_move = m;
+            best_gs = gs;
         }
     }    
 
-    if best_line.len() > 0 {
+    if !best_move.is_null_move() {
         if map.contains_key(&hash) {
-            *map.get_mut(&hash).unwrap() = (depth_left, *best_line.last().unwrap(), alpha);
+            *map.get_mut(&hash).unwrap() = (depth_left, best_move, alpha, best_gs);
         }
         else {
-            map.insert(hash, (depth_left, *best_line.last().unwrap(), alpha));
+            map.insert(hash, (depth_left, best_move, alpha, best_gs));
         }
     }
     
-
-    return (best_line, alpha);
+    //println!("Returning: {}", best_move.get_uci());
+    return (best_move, alpha, best_gs);
 }
 
-pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, i32)>) -> (ArrayVec<ChessMove, 30>, i32) {
+pub fn quiescence(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings) -> (ChessMove, f32, GameState) {
+    if game.get_game_state() != GameState::Undecided {
+        let pair = static_eval(game, &settings.eval_factors, false);
+        return (chess_move::NULL_MOVE, pair.0, pair.1);
+    }
     
-    let board = game.get_board();
-
     let pair = get_relative_endgame_eval(&game.get_board(), table);
-    if pair.0 {
-        return (ArrayVec::new(), pair.1);
-    }
-
-    
-    if game.get_game_state() == GameState::Undecided && board.in_check() {
-        return check_avoid_search(game, alpha, beta, depth_left, table, map);
+    if pair.1 != GameState::Undecided {
+        return (chess_move::NULL_MOVE, pair.0, pair.1);
     }
     
-    let stand_pat = static_eval(game, false);
-    
-    if stand_pat.abs() < 7 {
-        return (ArrayVec::new(), stand_pat);
+    if game.get_board().in_check() {
+        return check_avoid_search(game, alpha, beta, depth_left, table, map, settings);
     }
+    
+    let (stand_pat, sp_gs) = static_eval(game, &settings.eval_factors, false);
 
     if stand_pat >= beta {
-        return (ArrayVec::new(), beta);
+        return (NULL_MOVE, beta, GameState::Undecided);
     }
 
     //only for quiescence search
@@ -288,102 +260,85 @@ pub fn quiescence(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, ta
     }
 
 
-    if depth_left == 0 {
+    if depth_left <= 0 {
         //println!("Could not finish quiescence search");
-        return (ArrayVec::new(), stand_pat);
+        return (NULL_MOVE, stand_pat, sp_gs);
     }
     
-    let mut best_line = ArrayVec::new();
+    let hash = game.get_board().get_zoberist_hash();
+    let mut hist_move = chess_move::NULL_MOVE;
+    if map.contains_key(&hash) {
+        let (hist_depth_left, m , hist_value, hist_gs) = map[&hash];
+
+        hist_move = m;
+        if hist_depth_left >= depth_left {
+            return (hist_move, hist_value, hist_gs);
+        }
+    }
+
+    let mut best_move = NULL_MOVE;
+    let mut best_gs = GameState::Undecided;
 
     let mut list = game.get_legal_moves();
 
-
-    let mut hist_depth_left = 0_u8;
-    let mut hist_move = chess_move::NULL_MOVE;
-    let mut hist_value = i32::MAX;
-
-    let hash = game.get_board().get_zoberist_hash();
-    if map.contains_key(&hash) {
-        (hist_depth_left, hist_move, hist_value) = map[&hash];
-
-        if hist_depth_left >= depth_left {
-            return (ArrayVec::new(), hist_value);
-        }
-    }
     move_sorter(&mut list, hist_move);
 
-    //[TODO] quiescence search move gen
     for m in  list {
-        
         if !(m.is_direct_capture() || m.is_en_passant() || m.is_promotion()) {
             continue;
         }
 
         game.make_move(m);
-        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left - 1, table, map);
+
+        let (line, mut value, gs) = quiescence(game,  -beta, -alpha, depth_left - 1, table, map, settings);
+
         game.undo_move();
-        
+
         value = -value;
-        
+
         if value >= beta {
-            return (ArrayVec::new(), beta);
+            return (NULL_MOVE, beta, GameState::Undecided);
         }
 
         if value > alpha {
             alpha = value;
-            best_line = line;
 
-            best_line.push(m);
+            best_move = m;
+            best_gs = gs;
         }
     }    
 
-    return (best_line, alpha);
+    return (best_move, alpha, best_gs);
 }
 
-pub fn check_avoid_search(game: &mut Game, mut alpha: i32, beta: i32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, i32)>) -> (ArrayVec<ChessMove, 30>, i32) {
-    
-    let pair = get_relative_endgame_eval(&game.get_board(), table);
-    if pair.0 {
-        return (ArrayVec::new(), pair.1);
-    }
-    
-    let mut best_line = ArrayVec::new();
+pub fn check_avoid_search(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings) -> (ChessMove, f32, GameState) {
+    let mut best_move = NULL_MOVE;
+    let mut best_gs = GameState::Undecided;
 
     let mut list = game.get_legal_moves();
 
-    let mut hist_depth_left = 0_u8;
-    let mut hist_move = chess_move::NULL_MOVE;
-    let mut hist_value = i32::MAX;
-
-    let hash = game.get_board().get_zoberist_hash();
-    if map.contains_key(&hash) {
-        (hist_depth_left, hist_move, hist_value) = map[&hash];
-
-        if hist_depth_left >= depth_left {
-            return (ArrayVec::new(), hist_value);
-        }
-    }
-
-    move_sorter(&mut list, hist_move);
-
+    move_sorter(&mut list, chess_move::NULL_MOVE);
+    //println!("Check seach {} depth {}", game.get_board().get_fen(), depth_left);
     for m in  list {
         game.make_move(m);
-        let (line, mut value) = quiescence(game,  -beta, -alpha, depth_left, table, map);
+
+        let (line, mut value, gs) = quiescence(game,  -beta, -alpha, depth_left - if depth_left > 0 { 1 } else { 0 } , table, map, settings);
+
         game.undo_move();
-        
+
         value = -value;
-        
+
         if value >= beta {
-            return (ArrayVec::new(), beta);
+            return (NULL_MOVE, beta, GameState::Undecided);
         }
 
         if value > alpha {
             alpha = value;
-            best_line = line;
 
-            best_line.push(m);
+            best_move = line;
+            best_gs = gs;
         }
     }    
 
-    return (best_line, alpha);
+    return (best_move, alpha, best_gs);
 }

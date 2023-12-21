@@ -217,9 +217,14 @@ impl BitBoard {
     pub fn from_fen(fen: &str) -> Self {
         let parts = fen.split(" ").collect::<Vec<_>>();
         let mut board = BitBoard::empty();
-
         let mut square = 64 - 8;
+
+        const ALL_CHARS: &str = "rnbqkpRNBQKP12345678/";
+
         for c in parts[0].chars() {
+            if ALL_CHARS.find(c) == None {
+                continue;
+            }
             if c == '/' {
                 square -= 16;
                 continue;
@@ -1558,7 +1563,8 @@ impl BitBoard {
         println!("   a b c d e f g h");
     }
     pub fn print(&self) {
-        println!("Fen: {}", self.get_fen());
+        //"https://lichess.org/editor/r6r/2pk1pp1/4P3/p6p/P1bp4/2q2NQP/2P3P1/2BK3R_b_-_-_0_1
+        println!("https://lichess.org/editor/{}", self.get_fen().replace(" ", "_"));
 
         Self::print_type_field(&self.type_field);
 

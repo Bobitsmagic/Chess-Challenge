@@ -59,6 +59,10 @@ impl ChessMove {
     }
 
     pub fn get_uci(&self) -> String {
+        if self.is_null_move() {
+            return "NULL_MOVE".to_owned();
+        }
+
         let mut x = constants::SQUARE_NAME[self.start_square as usize].to_owned() + constants::SQUARE_NAME[self.target_square as usize];
         
         if self.is_promotion() {

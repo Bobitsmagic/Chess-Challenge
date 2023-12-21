@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 
 use crate::{chess_move::ChessMove, constants, bitboard_helper, bit_board::BitBoard, piece_type::PieceType};
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum GameState  {
     Undecided, WhiteCheckmate, BlackCheckmate, Stalemate, FiftyMove, Repetition, InsuffMaterial
 }

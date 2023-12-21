@@ -4,6 +4,8 @@ use std::{thread, time};
 
 use crate::{colored_piece_type::ColoredPieceType, piece_type::PieceType, bit_board::BitBoard, square::Square, constants, chess_move };
 
+const MAX_PIECE_COUNT: u8 = 3;
+
 pub fn generate_type_fields(max_piece_count: usize) -> Vec<Vec<[ColoredPieceType; 64]>> {
     assert!(max_piece_count >= 2);
 
