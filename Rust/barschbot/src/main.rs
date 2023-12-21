@@ -74,10 +74,10 @@ fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_s
     while game.get_game_state() == GameState::Undecided {
     
         let set = if first_player { bb_settings_a } else { bb_settings_b };
+        first_player = !first_player;
 
 
         let cm = barsch_bot::get_best_move(&mut game, table, set);
-        first_player = !first_player;
 
         game.make_move(cm);
 
@@ -184,12 +184,13 @@ fn play_all_fens(table: &EndgameTable) {
         fens.push(line);
     }
 
-    //let mut app = App::new();
+    const SHOW: bool = true;    
+    let mut app = App::new();
 
     //5 vs 4 ->  Sum: W 727 L 103 D 170
     //2 vs 1 ->  Sum: W 730 L 58 D 212
     //3 vs 2 ->  Sum: W 396 L 46 D 68
-    let a = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
+    let a = BBSettings { max_depth: 3, max_quiescence_depth: 2, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
     let b = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::MATERIAL_EVAL_FACTORS };
 
     let mut a_wins = 0;
@@ -199,8 +200,13 @@ fn play_all_fens(table: &EndgameTable) {
     for fen in fens {
         //println!("Playing fen: {}", fen);
 
-        let res = play_bot_game(fen, table, &a, &b);       
-        //let res = show_bot_game(fen, table, &mut app, &a, &b);
+        let mut res = GameState::Undecided;
+        if SHOW {
+            res = show_bot_game(fen, table, &mut app, &a, &b);
+        }
+        else {
+            res = play_bot_game(fen, table, &a, &b);       
+        }
         
         let white_start = Game::from_fen(fen).is_whites_turn();
 
@@ -216,8 +222,12 @@ fn play_all_fens(table: &EndgameTable) {
             }
         }
 
-        let res = play_bot_game(fen, table,  &b, &a);       
-        //let res = show_bot_game(fen, table, &mut app, &b, &a);
+        if SHOW {
+            res = show_bot_game(fen, table, &mut app, &b, &a);
+        }
+        else {
+            res = play_bot_game(fen, table, &b, &a);       
+        }
 
         if res.is_draw() {
             draws += 1;
