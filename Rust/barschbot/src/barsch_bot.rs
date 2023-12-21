@@ -16,6 +16,12 @@ pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSett
         return end_game_move(game, table);
     }
 
+    if bb_settings.eval_factors.piece_value[0] == 0.0 {
+        let list = game.get_legal_moves();
+
+        return list[game.get_board().get_zoberist_hash() as usize % list.len()];
+    }
+
     return iterative_deepening(game, table, bb_settings).0; 
 }
 //r3k2r/1pp1p1bp/p1nqb1p1/5p2/3P4/P1PBQN2/1P1B1PPP/R3K2R b KQkq -

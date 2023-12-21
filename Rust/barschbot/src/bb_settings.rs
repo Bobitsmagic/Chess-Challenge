@@ -54,7 +54,8 @@ pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
 };
 
 pub const MATERIAL_EVAL_FACTORS: EvalFactors = EvalFactors {
-    piece_value: [1.0, 2.8, 3.2, 5.0, 9.0],
+    //piece_value: [1.0, 2.8, 3.2, 5.0, 9.0],
+    piece_value: [0.0, 0.0, 0.0, 0.0, 0.0],
     safe_mobility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     unsafe_mobility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     
