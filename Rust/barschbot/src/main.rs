@@ -49,7 +49,7 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
     //check_all_perft_board();
-    let table = EndgameTable::load();
+    let table = EndgameTable::load(0);
     //let mut app = App::new();
     //play_game_player();
     //play_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", &table);
@@ -126,7 +126,7 @@ fn play_game_player() {
         app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
     }
 
-    let table = EndgameTable::load();
+    let table = EndgameTable::load(0);
     println!("Loaded table");
     //app.read_move();
 
@@ -190,7 +190,7 @@ fn play_all_fens(table: &EndgameTable) {
     //5 vs 4 ->  Sum: W 727 L 103 D 170
     //2 vs 1 ->  Sum: W 730 L 58 D 212
     //3 vs 2 ->  Sum: W 396 L 46 D 68
-    let a = BBSettings { max_depth: 3, max_quiescence_depth: 2, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
+    let a = BBSettings { max_depth: 3, max_quiescence_depth: 0, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
     let b = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::MATERIAL_EVAL_FACTORS };
 
     let mut a_wins = 0;

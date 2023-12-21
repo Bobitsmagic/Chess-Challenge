@@ -6,9 +6,6 @@ use crate::{game::{Game, GameState}, chess_move::{ChessMove, self, NULL_MOVE}, p
     evaluation::*, endgame_table::{self, EndgameTable, UNDEFINED}, bb_settings::{self, BBSettings}};
 
 const MAX_VALUE: f32 =  f32::INFINITY;
-const MAX_QUIESCENCE_DEPTH: u8 = 10;
-const NULL_MOVE_REDUCTION: u8 = 1;
-const DO_NM_PRUNING: bool = false;
 
 pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> ChessMove{
     if game.get_board().get_all_piece_count() <= 4 {
@@ -100,13 +97,13 @@ pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (f32
 }
 
 pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> (ChessMove, f32) {
-    const PRINT: bool = false;
+    const PRINT: bool = true;
     
     let mut map = HashMap::new();
     
     if PRINT {
         println!("Evaluating: {}", game.get_board().get_fen());
-        //static_eval(game, &bb_settings.eval_factors, true);
+        static_eval(game, &bb_settings.eval_factors, true);
     }
 
     let mut start = Instant::now();
@@ -121,14 +118,22 @@ pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &
             println!("{:?}", duration);
             print!("Depth: {} Eval: ", md);
             
-            print!("{}", pair.2.to_string());
-    
+            
+            if pair.2 == GameState::Undecided {
+                print!("{:.3}", pair.1);
+            }
+            else {
+                print!("{:.3}", pair.2.to_string());
+            }
+            
             println!(" Move: {}", pair.0.get_uci());
         }
 
         if pair.2.is_checkmate() {
             break;
         }
+
+        panic!();
     }
 
     return (pair.0, pair.1);
@@ -204,6 +209,7 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_lef
     move_sorter(&mut list, hist_move);
 
     for m in  list {
+        
         game.make_move(m);
         
         let (line, mut value, gs) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map, settings);
@@ -211,6 +217,7 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_lef
         game.undo_move();
         
         value = -value;
+        println!("Trying move: {} Eval: {:.3}", m.get_board_name(&game.get_board()), value);
         
         if value >= beta {
             //println!("Beta cutoff");
@@ -254,7 +261,12 @@ pub fn quiescence(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, ta
         return check_avoid_search(game, alpha, beta, depth_left, table, map, settings);
     }
     
-    let (stand_pat, sp_gs) = static_eval(game, &settings.eval_factors, false);
+    let (stand_pat, sp_gs) = static_eval(game, &settings.eval_factors, true);
+
+    if depth_left == 0 {
+        //println!("Could not finish quiescence search");
+        return (NULL_MOVE, stand_pat, sp_gs);
+    }
 
     if stand_pat >= beta {
         return (NULL_MOVE, beta, GameState::Undecided);
@@ -263,12 +275,6 @@ pub fn quiescence(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, ta
     //only for quiescence search
     if stand_pat > alpha {
         alpha = stand_pat;
-    }
-
-
-    if depth_left <= 0 {
-        //println!("Could not finish quiescence search");
-        return (NULL_MOVE, stand_pat, sp_gs);
     }
     
     let hash = game.get_board().get_zoberist_hash();

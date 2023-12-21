@@ -1291,23 +1291,12 @@ impl BitBoard {
                 let target_piece_type = type_field[target_square as usize];
 
                 list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
-
                 
                 if target_piece_type != ColoredPieceType::None && 
-                    !(
-                        (move_piece_type.is_diagonal_slider() && target_piece_type.is_diagonal_slider() || target_piece_type.is_orthogonal_slider() == move_piece_type.is_orthogonal_slider()) 
+                    !((move_piece_type.is_diagonal_slider() && target_piece_type.is_diagonal_slider() 
+                        || move_piece_type.is_orthogonal_slider() && target_piece_type.is_orthogonal_slider()) 
                         && (target_piece_type.is_white() == move_piece_type.is_white())) {
-                    
-
-                    //if target_piece_type == ColoredPieceType::WhiteQueen && move_piece_type == ColoredPieceType::WhiteBishop {
-                    //    ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type).print();
-                    //    println!(" kekekekeke");
-//
-                    //    println!("slider: {}, {}", move_piece_type.is_slider(), target_piece_type.is_slider());
-                    //    println!("Orthogonal slider: {}, {}", move_piece_type.is_orthogonal_slider(), target_piece_type.is_orthogonal_slider());
-//
-                    //    panic!("kek");
-                    //}
+                
                     break;
                 }
 
@@ -1630,6 +1619,16 @@ impl BitBoard {
         for m in list {
             m.print();  
             print!(" ");      
+        }
+    
+        println!("]");
+    }
+
+    pub fn print_local_moves(&self, list: &ArrayVec<ChessMove, 200>) {
+        print!("Moves {}[", list.len());
+    
+        for m in list {
+            print!("{} ", m.get_board_name(self));  
         }
     
         println!("]");

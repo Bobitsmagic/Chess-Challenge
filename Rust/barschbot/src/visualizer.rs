@@ -23,7 +23,7 @@ pub struct App {
     
 }
 
-const SIDE_LENGTH: u32 = 1200;
+const SIDE_LENGTH: u32 = 400;
 
 impl App {
     pub fn new() -> Self {

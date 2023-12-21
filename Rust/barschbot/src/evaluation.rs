@@ -94,7 +94,18 @@ pub fn static_eval(game: &mut Game, factors: &EvalFactors, do_print: bool) -> (f
 
     if board.in_check() {
         board.print();
-        panic!("In check");
+
+        if do_print {
+            println!("Check eval!!!!!!!!!!!")
+        }
+        else {
+            panic!("In check");
+        }
+    }
+
+    if do_print {
+        board.print_local_moves(&board.generate_legal_moves_eval(true));
+        board.print_local_moves(&board.generate_legal_moves_eval(false));
     } 
 
     let attributes = generate_eval_attributes(&board);
@@ -105,7 +116,7 @@ pub fn static_eval(game: &mut Game, factors: &EvalFactors, do_print: bool) -> (f
 
     let sum = factors.evaluate(&attributes);
      
-    return (sum, gs);
+    return (sum * if game.is_whites_turn() { 1.0 } else { -1.0 }, gs);
 }
 
 pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
@@ -170,7 +181,15 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
 
     let mut controlled_squares = 0;
     for s in 0..64 {
-        controlled_squares += static_exchange_evaluation[s].signum()
+        controlled_squares += static_exchange_evaluation[s].signum();
+
+        if static_exchange_evaluation[s] > 0 {
+            println!("W: {}", Square::from_u8(s as u8).to_string());
+        }
+
+        if static_exchange_evaluation[s] < 0 {
+            println!("B: {}", Square::from_u8(s as u8).to_string());
+        }
     }
     
     let (white_passed_pawns, white_doubled_pawns, white_isolated_pawns, white_pawn_ranks) 

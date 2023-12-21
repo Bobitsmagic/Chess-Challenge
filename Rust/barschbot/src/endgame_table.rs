@@ -1,3 +1,4 @@
+use core::panic;
 use std::{collections::HashMap, fs::File, io::{Write, Read}};
 
 use std::{thread, time};
@@ -514,6 +515,7 @@ pub const BLACK_CHECKMATE: i8 = 127;
 pub const DRAW: i8 = 0;
 pub struct EndgameTable {
     table_map: HashMap<u64, i8>,
+    max_piece_count: u8
 }
 
 
@@ -695,7 +697,7 @@ impl EndgameTable {
             }
         }
         
-        return EndgameTable { table_map };
+        return EndgameTable { table_map, max_piece_count: MAX_PIECE_COUNT };
 
         fn wait() {
             let ten_millis = time::Duration::from_millis(1000);
@@ -723,8 +725,17 @@ impl EndgameTable {
         file.write_all(&buffer).unwrap();
     }
 
-    pub fn load() -> Self {
-        let mut file = File::open("table_base_4.bin").unwrap();
+    pub fn load(mut max_piece_count: u8) -> Self {
+        if max_piece_count < 3 {
+            return EndgameTable { table_map: HashMap::new(), max_piece_count: 0};
+        }
+
+        if max_piece_count > 4 {
+            panic!("I cant handle this anymore");
+        }
+
+
+        let mut file = File::open("table_base_".to_owned() + &max_piece_count.to_string().to_owned() + ".bin").unwrap();
         // read the same file back into a Vec of bytes
         let mut buffer = Vec::<u8>::new();
         file.read_to_end(&mut buffer).unwrap();
@@ -747,7 +758,7 @@ impl EndgameTable {
             table_map.insert(hash, score);
         }
 
-        return EndgameTable { table_map };        
+        return EndgameTable { table_map, max_piece_count };        
     }
 
     pub fn get_score(&self, board: &BitBoard) -> i8 {
