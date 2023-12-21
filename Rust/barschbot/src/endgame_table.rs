@@ -515,7 +515,7 @@ pub const BLACK_CHECKMATE: i8 = 127;
 pub const DRAW: i8 = 0;
 pub struct EndgameTable {
     table_map: HashMap<u64, i8>,
-    max_piece_count: u8
+    pub max_piece_count: u8
 }
 
 
@@ -763,7 +763,7 @@ impl EndgameTable {
 
     pub fn get_score(&self, board: &BitBoard) -> i8 {
         let sym = BitBoard::from_board_state(& board.get_board_state().get_lowest_symmetry());      
-
+        
         let mut s = self.table_map[&sym.get_zoberist_hash()];
 
         if s == UNDEFINED {

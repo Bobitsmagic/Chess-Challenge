@@ -182,14 +182,6 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
     let mut controlled_squares = 0;
     for s in 0..64 {
         controlled_squares += static_exchange_evaluation[s].signum();
-
-        if static_exchange_evaluation[s] > 0 {
-            println!("W: {}", Square::from_u8(s as u8).to_string());
-        }
-
-        if static_exchange_evaluation[s] < 0 {
-            println!("B: {}", Square::from_u8(s as u8).to_string());
-        }
     }
     
     let (white_passed_pawns, white_doubled_pawns, white_isolated_pawns, white_pawn_ranks) 

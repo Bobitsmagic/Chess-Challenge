@@ -54,6 +54,21 @@ pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
 };
 
 pub const MATERIAL_EVAL_FACTORS: EvalFactors = EvalFactors {
+    piece_value: [1.0, 2.8, 3.2, 5.0, 9.0],
+    safe_mobility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    unsafe_mobility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    
+    square_control: 0.0,
+    
+    pawn_push_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    passed_pawn_value: 0.0,
+    doubled_pawn_penalty: -0.0,
+    isolated_pawn_penalty: -0.0,
+
+    king_attack: 0.0,
+};
+
+pub const RANDOM_MOVES: EvalFactors = EvalFactors {
     //piece_value: [1.0, 2.8, 3.2, 5.0, 9.0],
     piece_value: [0.0, 0.0, 0.0, 0.0, 0.0],
     safe_mobility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],

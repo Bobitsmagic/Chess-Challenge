@@ -1368,11 +1368,20 @@ impl BitBoard {
             }
         }
 
-        for m in self.generate_legal_king_moves(whites_turn) {
-            list.push(m);
-        }
-
         move_piece_type = ColoredPieceType::from_pt(PieceType::King, whites_turn);   
+
+
+        let start_square = Square::from_u8(self.get_king_square(whites_turn) as u8);
+
+        for target_index in bitboard_helper::iterate_set_bits(
+            bitboard_helper::KING_ATTACKS[start_square as usize]) {
+
+            let target_square = Square::from_u8(target_index as u8);
+
+            let target_piece_type = self.type_field[target_square as usize];
+            list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
+        }
+        
 
         //Castles
         //not in check

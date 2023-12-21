@@ -112,7 +112,10 @@ fn play_bot_game(start_position: &str, table: &EndgameTable, bb_settings_a: &BBS
         game.make_move(cm);
     }
 
-    //println!("{}", game.to_string());
+
+    //if game.get_game_state().is_draw() {
+    //    println!("{}", game.to_string());
+    //}
 
     return game.get_game_state();
 }
@@ -184,13 +187,13 @@ fn play_all_fens(table: &EndgameTable) {
         fens.push(line);
     }
 
-    const SHOW: bool = true;    
+    const SHOW: bool = false;    
     let mut app = App::new();
 
     //5 vs 4 ->  Sum: W 727 L 103 D 170
     //2 vs 1 ->  Sum: W 730 L 58 D 212
     //3 vs 2 ->  Sum: W 396 L 46 D 68
-    let a = BBSettings { max_depth: 3, max_quiescence_depth: 0, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
+    let a = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
     let b = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::MATERIAL_EVAL_FACTORS };
 
     let mut a_wins = 0;
