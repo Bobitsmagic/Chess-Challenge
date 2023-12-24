@@ -4,14 +4,16 @@ use bit_board::BitBoard;
 use chess_move::ChessMove;
 //use dataset::EvalBoards;
 use game::{Game, GameState};
+
 use visualizer::App;
 //use game::Game;
-use core::time;
+use core::{time, panic};
 use std::io::{Write, BufRead, BufReader, Read};
 use std::net::{TcpListener, TcpStream};
+use std::ops::Shr;
 use std::sync::atomic::AtomicU64;
 use std::time::{Instant, Duration};
-use std::{fs, io, thread};
+use std::{fs, io, thread, num};
 use std::str;
 
 use glutin_window::GlutinWindow as Window;
@@ -20,8 +22,13 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
+use num_bigint::BigInt;
+use num_traits::{Zero, One, ToPrimitive};
+
 use crate::bitboard_helper::{RANK_MASKS, FILE_MASKS};
+use crate::dataset::EvalBoards;
 use crate::endgame_table::EndgameTable;
+use crate::perceptron::Perceptron;
 use crate::square::Square;
 
 mod zoberist_hash;
@@ -37,7 +44,7 @@ mod bit_board;
 mod piece_type;
 mod colored_piece_type;
 mod square;
-//mod dataset;
+mod dataset;
 mod perceptron;
 mod visualizer;
 mod evaluation;
@@ -49,22 +56,30 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
     //check_all_perft_board();
-    let table = EndgameTable::load(0);
+    let table = EndgameTable::load(3);
     //let mut app = App::new();
     //play_game_player();
     //play_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", &table);
 
-    play_all_fens(&table);
+    //print_confidence(434, 337, 229);
+    //print_confidence(332, 308, 320);
+
+    //perceptron::test_perceptron();
+
+    //panic!();
+
+    find_best_bot(&table);
+    
 
     println!("Done");
 }
 
-fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings) -> GameState {
+fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings, flip: bool) -> GameState {
     println!("Playing fen: {}", start_position);
     let mut game = Game::from_fen(start_position);
 
     for i in 0..10 {
-        app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
+        app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE, flip);    
     }
     //let ten_millis = time::Duration::from_millis(1000);
     //thread::sleep(ten_millis);
@@ -82,7 +97,7 @@ fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_s
         game.make_move(cm);
 
         for i in 0..10 {
-            app.render_board(&game.get_board().type_field, cm);
+            app.render_board(&game.get_board().type_field, cm, flip);
         }
 
         let ten_millis = time::Duration::from_millis(100);
@@ -112,7 +127,6 @@ fn play_bot_game(start_position: &str, table: &EndgameTable, bb_settings_a: &BBS
         game.make_move(cm);
     }
 
-
     //if game.get_game_state().is_draw() {
     //    println!("{}", game.to_string());
     //}
@@ -125,8 +139,9 @@ fn play_game_player() {
     let mut game = Game::get_start_position(); 
     //game = Game::from_fen("r1bqkbnr/pppp1ppp/8/3Pn3/8/8/PPP1QPPP/RNB1KBNR b KQkq - 2 5");
 
+    let flip = false;
     for i in 0..10 {
-        app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE);    
+        app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE, flip);    
     }
 
     let table = EndgameTable::load(0);
@@ -147,7 +162,7 @@ fn play_game_player() {
                     game.make_move(m);
 
                     for i in 0..10 {
-                        app.render_board(&game.get_board().type_field, m);
+                        app.render_board(&game.get_board().type_field, m, flip);
                     }
                     break;
                 }
@@ -161,13 +176,12 @@ fn play_game_player() {
         
         game.make_move(cm);
         for i in 0..10 {
-            app.render_board(&game.get_board().type_field, cm);
+            app.render_board(&game.get_board().type_field, cm, flip);
         }    
 
 
         let ten_millis = time::Duration::from_millis(0);
         thread::sleep(ten_millis);
-
     }
     
     let ten_millis = time::Duration::from_millis(1000);
@@ -177,35 +191,122 @@ fn play_game_player() {
     println!("{}", game.to_string());
 }
 
-fn play_all_fens(table: &EndgameTable) {
+fn print_confidence(wins: i32, losses: i32, draws: i32) {
+    let sum = wins + losses + draws;
+    let score = wins * 2 + draws;
+    let n = sum * 2;
+    
+    println!("Scored {} out of {}", score, sum * 2);
+
+    println!("Approx winrate: {:.2} %", 100.0 * score as f64 / (sum * 2) as f64);
+
+    let mut pos_sum = BigInt::zero();
+
+    for i in score..(sum * 2 + 1) {
+        pos_sum += binom_pdf(sum * 2, i);
+    }
+    
+
+    let mut max_div = 0;
+    for i in 1..(n + 1) {
+        if pos_sum.clone() % (1 << i) == BigInt::zero() {
+            max_div = i;
+        }
+        else {
+            break;
+        }
+    }
+
+    pos_sum >>= max_div;
+
+    while n - max_div > 100 {
+        pos_sum >>= 1;
+        max_div += 1;
+    }
+
+    let denom = BigInt::one() << (n - max_div);
+
+    let prob = pos_sum.to_f64().unwrap() / denom.to_f64().unwrap();
+
+    println!("Likelyhood of superiority: {:.3}", (1.0 - prob) * 100.0);
+
+    fn binom_pdf(n: i32, k: i32) -> BigInt {
+
+        let mut numerator = BigInt::one();
+
+
+        for i in (k + 1)..(n + 1) {
+            numerator *= i;
+        }
+
+        for i in 2..(n - k + 1) {
+            numerator /= i;
+        }        
+
+        return numerator;
+    }
+}
+
+fn find_best_bot(table: &EndgameTable) {
+    
+    let standard = BBSettings { max_depth: 2, max_quiescence_depth: 2, end_game_table: true, 
+        eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
+
+    let mut improv = standard.clone();
+
+    let start_val = 0.000;
+    let end_val = -0.01;
+    let steps = 5;
+
+    let mut max_score = 0;
+    let mut best_val = 0.0;
+    for i in 0..(steps + 1) {
+        let val = start_val + (end_val - start_val) * (i as f32 / steps as f32);
+        println!("Trying value: {}", val);
+        improv.eval_factors.king_exposed_penalty = val;
+
+        let (wins, losses, draws) = play_all_fens(table, &improv, &standard);
+
+        print_confidence(wins, losses, draws);
+
+        if wins * 2 + draws > max_score {
+            println!("New best value: {}", val);
+
+            best_val = val;
+            max_score = wins * 2 + draws;
+        }
+    }
+}
+
+fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, i32, i32) {
     let mut fens = Vec::new();
+    
     let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\Fens.txt").unwrap();
+    //let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\chessData.csv").unwrap();
+    
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
 
     for line in contents.lines() {
-        fens.push(line);
+        fens.push(line.split(",").collect::<Vec<_>>()[0]);
     }
 
-    const SHOW: bool = false;    
-    let mut app = App::new();
+    //println!("[{}]", fens[0]);
 
-    //5 vs 4 ->  Sum: W 727 L 103 D 170
-    //2 vs 1 ->  Sum: W 730 L 58 D 212
-    //3 vs 2 ->  Sum: W 396 L 46 D 68
-    let a = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
-    let b = BBSettings { max_depth: 2, max_quiescence_depth: 2, eval_factors: bb_settings::MATERIAL_EVAL_FACTORS };
+    const SHOW: bool = false;    
+    //let mut app = App::new();
 
     let mut a_wins = 0;
     let mut b_wins = 0;
     let mut draws = 0;
 
+    let mut count = 0;
     for fen in fens {
         //println!("Playing fen: {}", fen);
 
         let mut res = GameState::Undecided;
         if SHOW {
-            res = show_bot_game(fen, table, &mut app, &a, &b);
+            //res = show_bot_game(fen, table, &mut app, &a, &b, false);
         }
         else {
             res = play_bot_game(fen, table, &a, &b);       
@@ -226,7 +327,7 @@ fn play_all_fens(table: &EndgameTable) {
         }
 
         if SHOW {
-            res = show_bot_game(fen, table, &mut app, &b, &a);
+            //res = show_bot_game(fen, table, &mut app, &b, &a, true);
         }
         else {
             res = play_bot_game(fen, table, &b, &a);       
@@ -244,8 +345,13 @@ fn play_all_fens(table: &EndgameTable) {
             }
         }
 
-        println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
+        count += 1;
+        if count % 50 == 0 {
+            println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
+        }
     }
+
+    return (a_wins, b_wins, draws);
 }
 
 fn check_all_perft_board() {

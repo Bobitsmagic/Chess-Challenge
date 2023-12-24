@@ -20,10 +20,9 @@ pub struct App {
     opengl: OpenGL,
     window: PistonWindow,
     textures: Vec<G2dTexture>,
-    
 }
 
-const SIDE_LENGTH: u32 = 400;
+const SIDE_LENGTH: u32 = 600;
 
 impl App {
     pub fn new() -> Self {
@@ -66,7 +65,7 @@ impl App {
         return App { opengl, window, textures };
     }
     
-    pub fn render_board(&mut self, type_field: &[ColoredPieceType; 64], lm: ChessMove) -> bool {
+    pub fn render_board(&mut self, type_field: &[ColoredPieceType; 64], lm: ChessMove, flip: bool) -> bool {
         use graphics::*;
         
         const LIGHT_SQUARE: [f32; 4] = [240.0 / 255.0, 217.0 / 255.0, 181.0 / 255.0, 1.0];
@@ -89,9 +88,15 @@ impl App {
             
             for x in 0..8 {
                 for y in 0..8 {
-                    let transform = c
+                    let mut transform = c
                         .transform
                         .trans(x as f64 * side_length, (7 - y)  as f64 * side_length);
+
+                    if flip {
+                        transform = c
+                        .transform
+                        .trans((7 - x) as f64 * side_length, y  as f64 * side_length);
+                    }
 
                     if (x + y) % 2 == 1 {
                         rectangle(LIGHT_SQUARE, square, transform, g);

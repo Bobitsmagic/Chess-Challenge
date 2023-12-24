@@ -119,28 +119,15 @@ impl ColoredPieceType {
     }
 
     pub fn is_slider(&self) -> bool {
-        return match PieceType::from_cpt(*self) {
-            PieceType::Rook => true,
-            PieceType::Bishop => true,
-            PieceType::Queen => true,
-            _ => false
-        }
+        return PieceType::from_cpt(*self).is_slider();
     }
 
     pub fn is_orthogonal_slider(&self) -> bool {
-        return match PieceType::from_cpt(*self) {
-            PieceType::Rook => true,
-            PieceType::Queen => true,
-            _ => false
-        }
+        return PieceType::from_cpt(*self).is_orthogonal_slider();
     }
 
     pub fn is_diagonal_slider(&self) -> bool {
-        return match PieceType::from_cpt(*self) {
-            PieceType::Bishop => true,
-            PieceType::Queen => true,
-            _ => false
-        }
+        return PieceType::from_cpt(*self).is_diagonal_slider();
     }
 
     pub fn get_char(&self) -> &char {

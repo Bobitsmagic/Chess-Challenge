@@ -1293,9 +1293,12 @@ impl BitBoard {
                 list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
                 
                 if target_piece_type != ColoredPieceType::None && 
-                    !((move_piece_type.is_diagonal_slider() && target_piece_type.is_diagonal_slider() 
-                        || move_piece_type.is_orthogonal_slider() && target_piece_type.is_orthogonal_slider()) 
-                        && (target_piece_type.is_white() == move_piece_type.is_white())) {
+                        //Both diagonal sliders
+                    !(  (move_piece_type.is_diagonal_slider() && target_piece_type.is_diagonal_slider() 
+                        //Both are orthogonal sliders 
+                            || move_piece_type.is_orthogonal_slider() && target_piece_type.is_orthogonal_slider()) 
+                            && target_piece_type.is_white() == move_piece_type.is_white()
+                    ) {
                 
                     break;
                 }
@@ -1370,7 +1373,6 @@ impl BitBoard {
 
         move_piece_type = ColoredPieceType::from_pt(PieceType::King, whites_turn);   
 
-
         let start_square = Square::from_u8(self.get_king_square(whites_turn) as u8);
 
         for target_index in bitboard_helper::iterate_set_bits(
@@ -1382,7 +1384,6 @@ impl BitBoard {
             list.push(ChessMove::new_move(start_square, target_square, move_piece_type, target_piece_type));
         }
         
-
         //Castles
         //not in check
         if whites_turn {
@@ -1423,6 +1424,76 @@ impl BitBoard {
         return list;
     }
 
+    pub fn get_diagonal_moves(&self, start_square: Square) -> ArrayVec<Square, 16>
+    {
+        //diagonal moves
+        const DIAGONAL_DIRECTIONS: [(i32, i32); 4] = [
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+            (-1, -1),
+        ];
+
+        let mut list = ArrayVec::new();
+        for (dx, dy) in DIAGONAL_DIRECTIONS {
+            let mut x = start_square.file() as i32 + dx; 
+            let mut y = start_square.rank() as i32 + dy;
+
+            while x >= 0 && x < 8 && y >= 0 && y < 8 {
+                let target_square = Square::from_u8((x + y * 8) as u8);
+                let target_piece_type = self.type_field[target_square as usize];
+
+                list.push(target_square);
+                
+                if target_piece_type != ColoredPieceType::None {
+                    break;
+                }
+
+                x += dx;
+                y += dy;
+            }
+        }
+
+        return list;
+    }
+
+    pub fn get_queen_moves(&self, start_square: Square) -> u64
+    {
+        //diagonal moves
+        const QUEEN_DIRECTIONS: [(i32, i32); 8] = [
+            (1, 1),
+            (1, -1),
+            (-1, 1),
+            (-1, -1),
+
+            (1, 0),
+            (-1, 0),
+            (0, 1),
+            (0, -1),
+        ];
+
+        let mut ret = 0;
+        for (dx, dy) in QUEEN_DIRECTIONS {
+            let mut x = start_square.file() as i32 + dx; 
+            let mut y = start_square.rank() as i32 + dy;
+
+            while x >= 0 && x < 8 && y >= 0 && y < 8 {
+                let target_square = Square::from_u8((x + y * 8) as u8);
+                let target_piece_type = self.type_field[target_square as usize];
+
+                bitboard_helper::set_bit(&mut ret, target_square, true);
+                
+                if target_piece_type != ColoredPieceType::None {
+                    break;
+                }
+
+                x += dx;
+                y += dy;
+            }
+        }
+
+        return ret;
+    }
 
     pub fn make_move(&mut self, m: ChessMove) {
         if m.is_null_move() {

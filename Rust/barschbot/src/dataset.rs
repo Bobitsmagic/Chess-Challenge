@@ -1,16 +1,13 @@
-use crate::delphin_bot;
+use crate::evaluation::{static_eval, generate_eval_attributes};
+use crate::perceptron;
 use crate::{bit_board::BitBoard, barsch_bot, game::Game, perceptron::Perceptron};
 use std::cmp;
 use std::fs::{read_to_string, self};
-use neuroflow::FeedForward;
-use neuroflow::data::DataSet;
-use neuroflow::io;
-use neuroflow::activators::Type::Tanh;
 use rand::{thread_rng, Rng};
 
 pub struct EvalBoards {
     boards: Vec<BitBoard>,
-    evals: Vec<i32>
+    evals: Vec<f32>
 }
 
 impl EvalBoards {
@@ -31,8 +28,12 @@ impl EvalBoards {
                 continue;
             }
 
-            let board = BitBoard::from_fen(parts[0]);
+            let mut board = BitBoard::from_fen(parts[0]);
             
+            if !barsch_bot::is_quiet_pos(&mut board) {
+                continue;
+            }
+
             let mut skip = 0;
             for c in parts[1].chars() {
                 if c == '+' || c == '-' || c == '0' {
@@ -51,9 +52,11 @@ impl EvalBoards {
             
             let eval: i32 = opt.unwrap();
 
+            if eval.abs() > 1000 {
+                continue;
+            }
             boards.push(board);
-            evals.push(eval);
-
+            evals.push(eval as f32 / 100.0);
 
             if positions % 1_000_000 == 0{
                 println!("{}", positions);
@@ -62,122 +65,34 @@ impl EvalBoards {
 
         println!("Totol position count: {}, filtered count: {}", positions, boards.len());
 
-        let mut min = i32::MAX;
-        let mut max = i32::MIN;
+        let mut min = f32::MAX;
+        let mut max = f32::MIN;
 
         for i in &evals {
-            min = i32::min(min, *i);
-            max = i32::max(max, *i);
-
+            min = f32::min(min, *i);
+            max = f32::max(max, *i);
         }
+
+        for i in 0..evals.len() {
+            if evals[i] == min || evals[i] == max {
+                boards[i].print();
+                
+                println!("Eval: {}", evals[i]);
+                break;
+            }
+        }
+
         println!("Min eval: {} Max eval {}", min, max);
 
         return EvalBoards { boards, evals };
     } 
 
-    pub fn get_square_error(&self) -> f64 {
-        let mut sum = 0.0;
-        for i in 0..self.boards.len() {
-
-            let mut game = Game::from_board(self.boards[i]);
-            let eval = barsch_bot::negation_max(&mut game, 2).1 
-                * (if game.is_whites_turn() { 1 } else { -1 }) as f64;
-
-
-
-            let dif = eval / 10.0 - self.evals[i] as f64; 
-            
-            sum += (dif * dif) as f64;
-
-            if i % 10_000 == 0 {
-                println!("{} -> {}%", i, (i as f64 / self.boards.len() as f64) * 100.0);
-            }  
-        }
-
-        return sum / self.boards.len() as f64;
-    }
-
-    pub fn train_modell(&self) {
-        const SAMPLE_COUNT: usize = 100000;
-        
-        let mut nn = FeedForward::new(&[773, 600, 400, 200, 100, 1]);       
-        nn.activation(Tanh);
-        nn.learning_rate(0.001);
-        nn.momentum(0.05);
-        
-        println!("Started gdc");
-        let mut cap = 1;
-        for i in 0..10000 {       
-            let (input_set, output_set) = self.create_random_training_set(SAMPLE_COUNT);
-
-            let mut data = DataSet::new();
-
-            for i in 0..input_set.len() {
-                data.push(&input_set[i], &[output_set[i]]);
-            }
-
-            //println!("Started training");
-            nn.train(&data, 1000);
-
-            if i == cap {
-                cap *= 2;
-                println!("Calc abs error");
-                let tuple = Self::calc_abs_error(&input_set, &output_set, &mut nn);
-                println!("It: {} Error mean: {}, min : {}, max {}", i, tuple.0, tuple.1, tuple.2);
-            }
-        }
-
-        io::save(&mut nn, "raw_board.flow").unwrap();
-    }
-
-    pub fn calc_abs_error(input_set: &Vec<Vec<f64>>, output_set: &Vec<f64>, nn: &mut FeedForward) -> (f64, f64, f64) {
-        let mut sum = 0.0;
-        let mut max = f64::MIN;
-        let mut min = f64::MAX;
-
-        let mut max_output = f64::MIN;
-        let mut min_output = f64::MAX;
-
-        for input_index in 0..input_set.len() {
-            let output = nn.calc(&input_set[input_index])[0];
-            let error = (output_set[input_index] - output).abs();
-
-            sum += error;
-
-            if error > max {
-                max = error;
-            }
-
-            if error < min {
-                min = error;
-            }
-
-            if output > max_output {
-                max_output = output;
-            }
-
-            if output < min_output {
-                min_output = output;
-            }
-        } 
-
-        println!("Min output: {}, Max output {}", min_output, max_output);
-        return (sum / input_set.len() as f64, min, max);
-    }
-
-    pub fn create_input_set(&self) -> Vec<Vec<f64>> {
+    pub fn create_input_set(&self) -> Vec<Vec<f32>> {
         let mut ret = Vec::new();
-
+        println!("Creating input set");
         for i in 0..self.boards.len() {
 
-            let eval = delphin_bot::get_neutral_vector(&self.boards[i]);
-            
-            let mut converted = Vec::new();
-            for v in eval {
-                converted.push(v as f64);
-            }
-
-            ret.push(converted);
+            ret.push(generate_eval_attributes(&self.boards[i]).get_vector());
 
             if i % 1_000_000 == 0 {
                 println!("{} -> {}%", i, (i as f64 / self.boards.len() as f64) * 100.0);
@@ -187,39 +102,8 @@ impl EvalBoards {
         return ret;
     }
 
-    pub fn create_random_training_set(&self, size: usize) -> (Vec<Vec<f64>>, Vec<f64>) {
-        let mut inpt = Vec::new();
-        let mut outp = Vec::new();
-        let mut rng = thread_rng();
-        for _ in 0..size {
-
-            let i: usize =  rng.gen_range(0..self.boards.len());
-            
-            let eval = delphin_bot::get_neutral_vector(&self.boards[i]);
-            
-            inpt.push(eval);
-
-            outp.push(normalize(self.evals[i] as f64));
-            //if i % 1_000_000 == 0 {
-            //    println!("{} -> {}%", i, (i as f64 / self.boards.len() as f64) * 100.0);
-            //}  
-        }
-
-        return (inpt, outp);
-
-        fn normalize(val: f64) -> f64 {
-            return f64::max(f64::min(val, 10_000.0), -10_000.0) / 10_000.0;
-        }
-    }
-
-    pub fn create_output_set(&self) -> Vec<f64> {
-        let mut ret = Vec::new();
-
-        for v in &self.evals {
-            ret.push((*v as f64));
-        }
-
-        return ret;
+    pub fn create_output_set(&self) -> Vec<f32> {
+        return self.evals.clone();
 
         //fn normalize(val: f64) -> f64 {
         //    return f64::max(f64::min(val, 10_000.0), -10_000.0) / 10_000.0;

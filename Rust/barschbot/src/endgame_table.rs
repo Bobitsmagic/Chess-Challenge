@@ -735,7 +735,7 @@ impl EndgameTable {
         }
 
 
-        let mut file = File::open("table_base_".to_owned() + &max_piece_count.to_string().to_owned() + ".bin").unwrap();
+        let mut file = File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\table_base_".to_owned() + &max_piece_count.to_string().to_owned() + ".bin").unwrap();
         // read the same file back into a Vec of bytes
         let mut buffer = Vec::<u8>::new();
         file.read_to_end(&mut buffer).unwrap();
@@ -756,6 +756,10 @@ impl EndgameTable {
             let score = i8::from_be_bytes([buffer[start_index + 8]; 1]);
 
             table_map.insert(hash, score);
+
+            if i % 1000000 == 0 {
+                println!("{} / {}", i, count);
+            }
         }
 
         return EndgameTable { table_map, max_piece_count };        
@@ -763,7 +767,7 @@ impl EndgameTable {
 
     pub fn get_score(&self, board: &BitBoard) -> i8 {
         let sym = BitBoard::from_board_state(& board.get_board_state().get_lowest_symmetry());      
-        
+
         let mut s = self.table_map[&sym.get_zoberist_hash()];
 
         if s == UNDEFINED {

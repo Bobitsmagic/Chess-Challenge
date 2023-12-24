@@ -1,13 +1,16 @@
 use crate::evaluation::EvalAttributes;
 
+#[derive(Clone)]
 pub struct BBSettings {
     pub max_depth: u8,
     pub max_quiescence_depth: u8,
+    pub end_game_table: bool,
     pub eval_factors: EvalFactors
 }
 
-pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 4, max_quiescence_depth: 10, eval_factors: STANDARD_EVAL_FACTORS };
+pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 4, max_quiescence_depth: 4, end_game_table: false, eval_factors: STANDARD_EVAL_FACTORS };
 
+#[derive(Clone)]
 pub struct EvalFactors {
     //[Pawn, Knight, Bishop, Rook, Queen, King] 
     
@@ -18,7 +21,7 @@ pub struct EvalFactors {
     //The value of a possible unsafe move (no capture) a piece of this type can make
     pub unsafe_mobility: [f32; 6],   
 
-    //[TODO] safe mobillity ?
+    pub late_factor_range: f32,
 
     //[TODO] Matrix (PT X PT) ?
 
@@ -35,22 +38,29 @@ pub struct EvalFactors {
     //[TODO] Matrix [passed?][doubled?][isolated?][rank] (64)
 
     //King
-    pub king_attack: f32, //The value of squares controlled by a Queen or Knight move away from the King
+    pub king_exposed_penalty: f32,
+    pub king_control_value: f32,          
+    pub safe_check_value: f32,      
+    pub unsafe_check_value: f32,
 }
 
 pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
-    piece_value: [1.0, 2.8, 3.2, 5.0, 9.0],
+    piece_value: [1.0, 2.8, 3.2, 5.0, 11.0],
     safe_mobility: [0.0, 0.08, 0.07, 0.05, 0.02, 0.0],
     unsafe_mobility: [0.0, 0.03, 0.02, 0.01, 0.001, 0.0],
     
     square_control: 0.01,
+    late_factor_range: 0.01,
     
     pawn_push_value: [0.0, 0.05, 0.07, 0.1, 0.15, 0.5],
-    passed_pawn_value: 0.1,
+    passed_pawn_value: 0.2,
     doubled_pawn_penalty: -0.15,
-    isolated_pawn_penalty: -0.2,
+    isolated_pawn_penalty: -0.15,
 
-    king_attack: 0.1,
+    king_exposed_penalty: -0.0001,
+    safe_check_value: 0.1,
+    unsafe_check_value: 0.03,
+    king_control_value: 0.001,
 };
 
 pub const MATERIAL_EVAL_FACTORS: EvalFactors = EvalFactors {
@@ -60,12 +70,17 @@ pub const MATERIAL_EVAL_FACTORS: EvalFactors = EvalFactors {
     
     square_control: 0.0,
     
+    late_factor_range: 0.0,
+    
     pawn_push_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     passed_pawn_value: 0.0,
     doubled_pawn_penalty: -0.0,
     isolated_pawn_penalty: -0.0,
 
-    king_attack: 0.0,
+    king_exposed_penalty: 0.0,
+    safe_check_value: 0.0,
+    unsafe_check_value: 0.0,
+    king_control_value: 0.0,
 };
 
 pub const RANDOM_MOVES: EvalFactors = EvalFactors {
@@ -75,29 +90,39 @@ pub const RANDOM_MOVES: EvalFactors = EvalFactors {
     unsafe_mobility: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     
     square_control: 0.0,
+
+    late_factor_range: 0.0,
     
     pawn_push_value: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     passed_pawn_value: 0.0,
     doubled_pawn_penalty: -0.0,
     isolated_pawn_penalty: -0.0,
 
-    king_attack: 0.0,
+    king_exposed_penalty: 0.0,
+    safe_check_value: 0.0,
+    unsafe_check_value: 0.0,
+    king_control_value: 0.0,
 };
 
-
+pub const MAX_MATERIAL_SUM: i32 = 3 * 8 + 5 * 4 + 9 * 2;
 impl EvalFactors {
     pub fn evaluate(&self, attributes: &EvalAttributes) -> f32 {
         
         let mut sum = 0.0;
+        const START_MAT_SUM: f32 = MAX_MATERIAL_SUM as f32;
+
+        let late_factor = 1.0 + self.late_factor_range - attributes.material_sum as f32 / START_MAT_SUM * self.late_factor_range;
+
         for i in 0..5 {
             sum += self.piece_value[i] * attributes.piece_dif[i] as f32;
         }
+
+        sum *= late_factor;
+
         for i in 0..6 {
             sum += self.safe_mobility[i] * attributes.safe_mobility_dif[i] as f32;
             sum += self.unsafe_mobility[i] * attributes.unsafe_mobility_dif[i] as f32;
         }
-
-        sum += self.square_control * attributes.square_control_dif as f32;
 
         for i in 0..6 {
             sum += self.pawn_push_value[i] * attributes.pawn_push_dif[i] as f32;
@@ -106,7 +131,11 @@ impl EvalFactors {
         sum += self.passed_pawn_value * attributes.passed_pawn_dif as f32;
         sum += self.doubled_pawn_penalty * attributes.doubled_pawn_dif as f32;
         sum += self.isolated_pawn_penalty * attributes.isolated_pawn_dif as f32;
-        sum += self.king_attack * attributes.king_attack_dif as f32;
+        
+        sum += self.king_exposed_penalty * attributes.king_qn_moves_dif as f32;
+        sum += self.king_control_value * attributes.king_control_dif as f32;
+        sum += self.safe_check_value * attributes.safe_check_dif as f32;
+        sum += self.unsafe_check_value * attributes.unsafe_check_dif as f32;
 
         return sum;
     }

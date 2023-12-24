@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::HashMap;
 
-use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper, endgame_table::EndgameTable, square::{self, Square}, zoberist_hash, bb_settings::EvalFactors, bit_board::BitBoard};
+use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper, endgame_table::EndgameTable, square::{self, Square}, zoberist_hash, bb_settings::EvalFactors, bit_board::BitBoard, constants};
 
 pub const CHECKMATE_VALUE: f32 = f32::MAX;
 //                              Pawn, Knight, Bishop, Rook, Queen, King
@@ -9,16 +9,23 @@ pub const CHECKMATE_VALUE: f32 = f32::MAX;
 pub struct EvalAttributes {
     pub piece_dif: [i32; 5], 
     pub safe_mobility_dif: [i32; 6], 
-    pub unsafe_mobility_dif: [i32; 6], 
-    
-    pub square_control_dif: i32, 
+    pub unsafe_mobility_dif: [i32; 6],
+
+    pub material_sum: i32,
 
     pub pawn_push_dif: [i32; 6], 
     pub passed_pawn_dif: i32, 
     pub doubled_pawn_dif: i32, 
     pub isolated_pawn_dif: i32, 
 
-    pub king_attack_dif: i32
+    //Number of moves a Queen and Knight could do at the king pos
+    pub king_qn_moves_dif: i32,
+    //Number of controlled squares by the opponent the king can move to
+    pub king_control_dif: i32,
+    //Number of safe moves to a square the opponent king can move to
+    pub safe_check_dif: i32,
+    //Number of unsafe moves to a square the opponent king can move to
+    pub unsafe_check_dif: i32,
 }
 
 impl EvalAttributes {
@@ -43,8 +50,6 @@ impl EvalAttributes {
                 println!("\tunsafe: {} -> {}", PieceType::from_u8(i as u8).get_char(), self.unsafe_mobility_dif[i]);
             }
         }
-        
-        println!("Square control dif: {}", self.square_control_dif);
 
         println!("Pawn push dif: ");
         for i in 0..6 {
@@ -65,9 +70,40 @@ impl EvalAttributes {
             println!("Isolated pawn dif: {}", self.isolated_pawn_dif);
         }
 
-        if self.king_attack_dif != 0 {
-            println!("King attack dif: {}", self.king_attack_dif);
+        if self.king_control_dif != 0 {
+            println!("King attack dif: {}", self.king_control_dif);
         }
+    }
+
+    pub fn get_vector(&self) -> Vec<f32> {
+        let mut list = Vec::new();
+
+        for v in self.piece_dif {
+            list.push(v as f32);
+        }
+
+        for v in self.safe_mobility_dif {
+            list.push(v as f32);
+        }
+
+        for v in self.unsafe_mobility_dif {
+            list.push(v as f32);
+        }
+
+        for v in self.pawn_push_dif {
+            list.push(v as f32);
+        }
+
+        list.push(self.passed_pawn_dif as f32);
+        list.push(self.doubled_pawn_dif as f32);
+        list.push(self.isolated_pawn_dif as f32);
+
+        list.push(self.king_qn_moves_dif as f32);
+        list.push(self.king_control_dif as f32);
+        list.push(self.safe_check_dif as f32);
+        list.push(self.unsafe_check_dif as f32);
+
+        return list;
     }
 }
 
@@ -121,14 +157,26 @@ pub fn static_eval(game: &mut Game, factors: &EvalFactors, do_print: bool) -> (f
 
 pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
     let mut piece_count = [0; 5];
-
+    const MAT_SUM_VAL: [i32; 5] = [0, 3, 3, 5, 9];
+    let mut material_sum = 0;
     for i in 0..5 {
-        piece_count[i as usize] = board.get_piece_count(ColoredPieceType::from_u8(i * 2 + 0)) as i32 
-            - board.get_piece_count(ColoredPieceType::from_u8(i * 2 + 1)) as i32;
+        let pt = PieceType::from_u8(i as u8);
+
+        let wc = board.get_piece_count(ColoredPieceType::from_pt(pt, true)) as i32;
+        let bc = board.get_piece_count(ColoredPieceType::from_pt(pt, false)) as i32;
+        piece_count[i as usize] =  wc - bc; 
+
+        material_sum += MAT_SUM_VAL[pt as usize] * (wc + bc);        
     }
 
-    let white_list = board.generate_legal_moves_eval(true);
-    let black_list = board.generate_legal_moves_eval(false);
+    let mut white_list = board.generate_legal_moves_eval(true);
+    let mut black_list = board.generate_legal_moves_eval(false);
+
+
+    //white_list.sort_unstable_by(|a, b| { return a.get_uci().cmp(&b.get_uci())});
+    //black_list.sort_unstable_by(|a, b| { return a.get_uci().cmp(&b.get_uci())});
+    //board.print_local_moves(&white_list);
+    //board.print_local_moves(&black_list);
 
     let mut least_valueable_attacker_white = [PieceType::None; 64];
     let mut least_valueable_attacker_black = [PieceType::None; 64];
@@ -154,50 +202,153 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
         }
     }
 
+
+    //let mut controlled_sq = 0;
+    //for i in 0..64 {
+    //    bitboard_helper::set_bit(&mut controlled_sq, Square::from_u8(i), 
+    //        static_exchange_evaluation[i as usize] > 0);
+    //}
+    //bitboard_helper::print_bitboard(controlled_sq);
+    //let mut controlled_sq = 0;
+    //for i in 0..64 {
+    //    bitboard_helper::set_bit(&mut controlled_sq, Square::from_u8(i), 
+    //        static_exchange_evaluation[i as usize] < 0);
+    //}
+    //bitboard_helper::print_bitboard(controlled_sq);
+
+
     let mut safe_mobility_count = [0; 6];
     let mut unsafe_mobility_count = [0; 6];
+
+    let white_king_pos = board.get_king_square(true);
+    let black_king_pos = board.get_king_square(false);
+
+    let white_king_queen_mask = board.get_queen_moves(white_king_pos);
+    let black_king_queen_mask = board.get_queen_moves(black_king_pos);
+
+    let white_king_knight_mask = bitboard_helper::KNIGHT_ATTACKS[white_king_pos as usize];
+    let black_king_knight_mask = bitboard_helper::KNIGHT_ATTACKS[black_king_pos as usize];
+
+    //Amount of moves a Queen and Knight could do at the position of the King
+    let king_qn_move_count = (white_king_queen_mask.count_ones() as i32 - black_king_queen_mask.count_ones() as i32) 
+                            + (white_king_knight_mask.count_ones() as i32 - black_king_knight_mask.count_ones() as i32);
+    
+    //Every check one side can give without loosing material
+    let mut safe_king_attacks = 0;
+    //Every check one side can give that would loose material
+    let mut unsafe_king_attacks = 0;
+
     //Compute safe mobility
     for m in &white_list {
         let mpt = PieceType::from_cpt(m.move_piece_type);
-        if mpt <= PieceType::from_cpt(board.get_piece_type(m.target_square)) ||
-                mpt <= least_valueable_attacker_black[m.target_square as usize] {
+
+        //Either capturing a piece with >= value or no recapture with lower value piece and SEE >= 0
+        let is_safe = mpt <= PieceType::from_cpt(board.get_piece_type(m.target_square)) 
+            || mpt <= least_valueable_attacker_black[m.target_square as usize] 
+            && static_exchange_evaluation[m.target_square as usize] >= 0;
+        
+        if is_safe {
             safe_mobility_count[mpt as usize] += 1;
         }
         else {
             unsafe_mobility_count[mpt as usize] += 1;
         }
+
+        if bitboard_helper::get_bit(black_king_queen_mask, m.target_square) && 
+            (m.target_square.is_orthogonal_to(black_king_pos) && mpt.is_orthogonal_slider() ||
+            !m.target_square.is_orthogonal_to(black_king_pos) && mpt.is_diagonal_slider()) {
+                
+            if is_safe {
+                safe_king_attacks += 1;
+            }
+            else {
+                unsafe_king_attacks += 1;
+            }
+        }
+
+        if bitboard_helper::get_bit(black_king_knight_mask, m.target_square) && 
+            mpt == PieceType::Knight {
+            
+            if is_safe {
+                safe_king_attacks += 1;
+            }
+            else {
+                unsafe_king_attacks += 1;
+            }
+        }
     }
 
     for m in &black_list {
         let mpt = PieceType::from_cpt(m.move_piece_type);
-        if mpt <= PieceType::from_cpt(board.get_piece_type(m.target_square)) ||
-                mpt <= least_valueable_attacker_white[m.target_square as usize] {
+        //Either capturing a piece with >= value or no recapture with lower value piece and SEE >= 0
+        let is_safe = mpt <= PieceType::from_cpt(board.get_piece_type(m.target_square)) 
+            || mpt <= least_valueable_attacker_white[m.target_square as usize] 
+            && static_exchange_evaluation[m.target_square as usize] <= 0;
+        
+        if is_safe {
             safe_mobility_count[mpt as usize] -= 1;
         }
         else {
             unsafe_mobility_count[mpt as usize] -= 1;
         }
-    }
 
-    let mut controlled_squares = 0;
-    for s in 0..64 {
-        controlled_squares += static_exchange_evaluation[s].signum();
+        if bitboard_helper::get_bit(white_king_queen_mask, m.target_square) && 
+            (m.target_square.is_orthogonal_to(white_king_pos) && mpt.is_orthogonal_slider() ||
+            !m.target_square.is_orthogonal_to(white_king_pos) && mpt.is_diagonal_slider()) {
+                
+            if is_safe {
+                safe_king_attacks -= 1;
+            }
+            else {
+                unsafe_king_attacks -= 1;
+            }
+        }
+
+        if bitboard_helper::get_bit(white_king_knight_mask, m.target_square) && 
+            mpt == PieceType::Knight {
+            
+            if is_safe {
+                safe_king_attacks -= 1;
+            }
+            else {
+                unsafe_king_attacks -= 1;
+            }
+        }
     }
     
-    let (white_passed_pawns, white_doubled_pawns, white_isolated_pawns, white_pawn_ranks) 
+    let (passed_pawns, doubled_pawns, isolated_pawns, pawn_ranks) 
         = eval_pawn_structure(board);
     
+    //King safety
+    //Black king moves
+    let mut king_control = 0;
+    for s in constants::KING_MOVES[board.get_king_square(false) as usize] {
+        if static_exchange_evaluation[*s as usize] > 0 {
+            king_control += 1;
+        }
+    }
+    for s in constants::KING_MOVES[board.get_king_square(true) as usize] {
+        if static_exchange_evaluation[*s as usize] < 0 {
+            king_control -= 1;
+        }
+    }
     
     return EvalAttributes {
         piece_dif: piece_count,
         safe_mobility_dif: safe_mobility_count,
         unsafe_mobility_dif: unsafe_mobility_count,
-        square_control_dif: controlled_squares,
-        pawn_push_dif: white_pawn_ranks,
-        passed_pawn_dif: white_passed_pawns,
-        doubled_pawn_dif: white_doubled_pawns,
-        isolated_pawn_dif: white_isolated_pawns,
-        king_attack_dif: 0
+
+        material_sum: material_sum,
+
+        pawn_push_dif: pawn_ranks,
+        passed_pawn_dif: passed_pawns,
+        doubled_pawn_dif: doubled_pawns,
+        isolated_pawn_dif: isolated_pawns,
+
+        king_qn_moves_dif: king_qn_move_count,
+        king_control_dif: king_control, 
+        safe_check_dif: safe_king_attacks,
+        unsafe_check_dif: unsafe_king_attacks,
     };
 }
 
@@ -233,8 +384,14 @@ pub fn eval_pawn_structure(board: &BitBoard) -> (i32, i32, i32, [i32; 6]) {
         let mut count = 0;
 
         for i in bitboard_helper::iterate_set_bits(allied_pawns) {
+            //println!("I: {}", i);
             if opponent_pawns & pawn_mask[i as usize] == 0 {
                 count += 1;
+
+                //println!("Passed pawn: {}", Square::from_u8(i as u8).to_string());
+                //println!("Opponents: ");
+                //bitboard_helper::print_bitboard(opponent_pawns);
+                //bitboard_helper::print_bitboard(pawn_mask[i as usize]);
             }
         }
 
@@ -242,15 +399,14 @@ pub fn eval_pawn_structure(board: &BitBoard) -> (i32, i32, i32, [i32; 6]) {
     }
 
     fn count_doubled_pawns(pawn_bitboard: u64) -> i32 {
-        let mut buffer = pawn_bitboard;
+        let mut buffer = pawn_bitboard << 8;
         let mut count = 0;
-        for i in 0..8 {
-            buffer <<= 8;
 
-            count += (pawn_bitboard & buffer).count_ones();
-        }
+        buffer |= buffer << 8;
+        buffer |= buffer << 16;
+        buffer |= buffer << 32;
 
-        return count as i32;
+        return (pawn_bitboard & buffer).count_ones() as i32;
     }
 
     fn count_isolated_pawns(pawn_bitboard: u64) -> i32 {
@@ -264,4 +420,116 @@ pub fn eval_pawn_structure(board: &BitBoard) -> (i32, i32, i32, [i32; 6]) {
 
         return count;
     }    
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::bb_settings;
+
+    use super::*;
+
+    #[test]
+    fn test_generate_eval_attributes_start_board() {
+        let board = BitBoard::start_position();
+        let attributes = generate_eval_attributes(&board);
+
+        // Check that all attributes are zero for an empty board
+        assert_eq!(attributes.pawn_push_dif, [0_i32; 6]);
+        assert_eq!(attributes.piece_dif, [0_i32; 5]);
+        assert_eq!(attributes.safe_mobility_dif, [0_i32; 6]);
+        assert_eq!(attributes.unsafe_mobility_dif, [0_i32; 6]);
+        assert_eq!(attributes.passed_pawn_dif, 0);
+        assert_eq!(attributes.doubled_pawn_dif, 0);
+        assert_eq!(attributes.isolated_pawn_dif, 0);
+        assert_eq!(attributes.king_qn_moves_dif, 0);
+        assert_eq!(attributes.king_control_dif, 0);
+        assert_eq!(attributes.safe_check_dif, 0);
+        assert_eq!(attributes.unsafe_check_dif, 0);
+        assert_eq!(attributes.material_sum, bb_settings::MAX_MATERIAL_SUM)
+    }
+    #[test]
+    fn test_generate_eval_attributes_symmetric_full_board() {
+        let board = BitBoard::from_fen("2k1rb1r/pbpnqpp1/1p3n2/3pp2p/3PP2P/1P3N2/PBPNQPP1/2K1RB1R w Kk - 0 1");
+        let attributes = generate_eval_attributes(&board);
+
+        // Check that all attributes are zero for an empty board
+        assert_eq!(attributes.pawn_push_dif, [0_i32; 6]);
+        assert_eq!(attributes.piece_dif, [0_i32; 5]);
+        assert_eq!(attributes.safe_mobility_dif, [0_i32; 6]);
+        assert_eq!(attributes.unsafe_mobility_dif, [0_i32; 6]);
+        assert_eq!(attributes.passed_pawn_dif, 0);
+        assert_eq!(attributes.doubled_pawn_dif, 0);
+        assert_eq!(attributes.isolated_pawn_dif, 0);
+        assert_eq!(attributes.king_qn_moves_dif, 0);
+        assert_eq!(attributes.king_control_dif, 0);
+        assert_eq!(attributes.safe_check_dif, 0);
+        assert_eq!(attributes.unsafe_check_dif, 0);
+        assert_eq!(attributes.material_sum, bb_settings::MAX_MATERIAL_SUM)
+    }
+
+    #[test]
+    fn test_eval_pawn_structure_uneaven() {
+        let board = BitBoard::from_fen("7k/1p6/8/4pP2/3p4/1P1P1P2/P5P1/7K w - - 0 1");
+
+        //Passed pawns 2 - 0
+        //Doubled pawns 1 - 0
+        //Isolated pawns 1 - 1
+        //Pawn ranks 
+        //2 - 1
+        //3 - 0
+        //0 - 1
+        //1 - 1
+        //0 - 0
+        //0 - 0
+
+        let (passed_pawns, doubled_pawns, isolated_pawns, pawn_ranks) 
+        = eval_pawn_structure(&board);
+
+        assert_eq!(passed_pawns, 2);
+        assert_eq!(doubled_pawns, 1);
+        assert_eq!(isolated_pawns, 0);
+        assert_eq!(pawn_ranks, [1, 3, -1, 0, 0, 0]);
+    }
+
+    #[test]
+    fn test_eval_pawn_structure_uneven_2() {
+        let board = BitBoard::from_fen("7k/1p3P2/1P2p1P1/1Pp2p2/1P6/1P1p4/1P6/7K w - - 0 1");
+
+        
+        let (passed_pawns, doubled_pawns, isolated_pawns, pawn_ranks) 
+        = eval_pawn_structure(&board);
+        
+        //Passed pawns 2 - 3
+        assert_eq!(passed_pawns, -1);
+        //Doubled pawns 4 - 0
+        assert_eq!(doubled_pawns, 4);
+        //Isolated pawns 5 - 0
+        assert_eq!(isolated_pawns, 5);
+        //Pawn ranks 
+        //1 - 1
+        //1 - 1
+        //1 - 2
+        //1 - 0
+        //2 - 1
+        //1 - 0
+        assert_eq!(pawn_ranks, [0, 0, -1, 1, 1, 1]);
+    }
+
+    
+    #[test]
+    fn test_king_safety() {
+        //https://lichess.org/editor/1kp5/1pp5/8/2br2n1/8/8/5P1P/6K1_w_-_-_0_1?color=white
+        let board = BitBoard::from_fen("1kp5/1pp5/8/2br2n1/8/8/5P1P/6K1 w - - 0 1");
+        let attributes = generate_eval_attributes(&board);
+
+        //3n + 11r + 2b - (3n + 3r + 2b)
+        assert_eq!(attributes.king_qn_moves_dif, 8);
+        //-1
+        assert_eq!(attributes.king_control_dif, -1);
+        //2n + 1b + 2r
+        assert_eq!(attributes.safe_check_dif, -5);
+        //0
+        assert_eq!(attributes.unsafe_check_dif, 0);
+    }
+    
 }

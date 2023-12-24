@@ -8,7 +8,7 @@ use crate::{game::{Game, GameState}, chess_move::{ChessMove, self, NULL_MOVE}, p
 const MAX_VALUE: f32 =  f32::INFINITY;
 
 pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> ChessMove{
-    if game.get_board().get_all_piece_count() <= table.max_piece_count as u32 {
+    if bb_settings.end_game_table && game.get_board().get_all_piece_count() <= table.max_piece_count as u32 {
         //println!("Endgame move");
         return end_game_move(game, table);
     }
@@ -21,7 +21,6 @@ pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSett
 
     return iterative_deepening(game, table, bb_settings).0; 
 }
-//r3k2r/1pp1p1bp/p1nqb1p1/5p2/3P4/P1PBQN2/1P1B1PPP/R3K2R b KQkq -
 
 pub fn end_game_move(game: &mut Game, table: &EndgameTable) -> ChessMove {
     if game.get_board().get_all_piece_count() > table.max_piece_count as u32 {
@@ -68,7 +67,7 @@ pub fn end_game_move(game: &mut Game, table: &EndgameTable) -> ChessMove {
 pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (f32, GameState) {
     if board.get_all_piece_count() <= table.max_piece_count as u32 {
 
-        println!("This should not happen {}", table.max_piece_count);
+        //println!("This should not happen {}", table.max_piece_count);
         let score = table.get_score(&board);
         
         let mut res = 0.0;
@@ -185,9 +184,11 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_lef
         return (chess_move::NULL_MOVE, pair.0, pair.1);
     }
     
-    let pair = get_relative_endgame_eval(&game.get_board(), table);
-    if pair.1 != GameState::Undecided {
-        return (chess_move::NULL_MOVE, pair.0, pair.1);
+    if settings.end_game_table {
+        let pair = get_relative_endgame_eval(&game.get_board(), table);
+        if pair.1 != GameState::Undecided {
+            return (chess_move::NULL_MOVE, pair.0, pair.1);
+        }
     }
 
     let hash = game.get_board().get_zoberist_hash();
@@ -251,9 +252,11 @@ pub fn quiescence(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, ta
         return (chess_move::NULL_MOVE, pair.0, pair.1);
     }
     
-    let pair = get_relative_endgame_eval(&game.get_board(), table);
-    if pair.1 != GameState::Undecided {
-        return (chess_move::NULL_MOVE, pair.0, pair.1);
+    if settings.end_game_table {
+        let pair = get_relative_endgame_eval(&game.get_board(), table);
+        if pair.1 != GameState::Undecided {
+            return (chess_move::NULL_MOVE, pair.0, pair.1);
+        }
     }
     
     if game.get_board().in_check() {
@@ -321,6 +324,25 @@ pub fn quiescence(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, ta
     }    
 
     return (best_move, alpha, best_gs);
+}
+
+pub fn is_quiet_pos(board: &mut BitBoard) -> bool {
+    if board.in_check() {
+        return false;
+    }
+
+    return true;
+
+    let mut list = board.get_legal_moves();
+
+    for m in  list {
+        if (PieceType::from_cpt(m.move_piece_type) as u8) < (PieceType::from_cpt(m.capture_piece_type) as u8) 
+            || m.is_promotion() {
+            return false;
+        }
+    }    
+
+    return true;
 }
 
 pub fn check_avoid_search(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings) -> (ChessMove, f32, GameState) {

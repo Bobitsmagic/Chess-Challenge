@@ -98,6 +98,7 @@ dependencies = [
  "backtrace",
  "find_folder",
  "num",
+ "num-bigint",
  "num-derive",
  "num-integer",
  "num-traits",

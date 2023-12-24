@@ -3,7 +3,7 @@ use rand::prelude::*;
 use rand_distr::StandardNormal;
 
 pub struct Perceptron {
-    weights: Vec<f32>
+    pub weights: Vec<f32>
 }
 
 pub fn test_perceptron() {
@@ -110,8 +110,8 @@ impl Perceptron {
 
     pub fn gradient_descent(&mut self, input_set: &Vec<Vec<f32>>, output_set: &Vec<f32>) {
 
-        const MAX_IT: usize = 100_000;
-        const SAMPLE_COUNT: usize = 100000;
+        const MAX_IT: usize = 100_0000;
+        const SAMPLE_COUNT: usize = 100_00;
         let mut indices: Vec<usize> = Vec::new();
         let mut rng = thread_rng();
 
@@ -126,13 +126,14 @@ impl Perceptron {
             //println!("Gradient");
             //println!("{:?}", gradient);
 
+            //Skip pawn
             for i in 0..gradient.len() {
                 self.weights[i] += (gradient[i] / SAMPLE_COUNT as f32) * 0.001;
             }
-
-
-            if i % 1000 == 0 {
-                println!("{} -> {}", i, self.calc_squares_error(input_set, output_set));
+            if i % 10000 == 0 {
+                println!("Sq");
+                println!("{} -> {}", i, f32::sqrt(self.calc_squares_error(input_set, output_set) / input_set.len() as f32));
+                self.print();
             }
         }
         println!("NSE: {}", self.calc_squares_error(input_set, output_set) / input_set.len() as f32);

@@ -39,6 +39,22 @@ impl PieceType {
         }
     }
 
+    pub fn is_diagonal_slider(&self) -> bool {
+        return match *self {
+            PieceType::Bishop => true,
+            PieceType::Queen => true,
+            _ => false
+        }
+    }
+
+    pub fn is_orthogonal_slider(&self) -> bool {
+        return match *self {
+            PieceType::Rook => true,
+            PieceType::Queen => true,
+            _ => false
+        }
+    }
+
     pub fn get_char(&self) -> char {
         return *ColoredPieceType::from_pt(*self, true).get_char();
     }

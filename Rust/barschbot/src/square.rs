@@ -175,6 +175,11 @@ impl Square {
         return (*self) as u8 % 8;
     }
 
+    pub fn is_orthogonal_to(&self, other: Square) -> bool {
+        return self.file() == other.file() || 
+            self.rank() == other.rank();
+    }
+
     pub fn file_char(&self) -> char {
         const COLUMN_CHAR: [char; 8] = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
