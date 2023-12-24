@@ -57,7 +57,7 @@ pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
     doubled_pawn_penalty: -0.15,
     isolated_pawn_penalty: -0.15,
 
-    king_exposed_penalty: -0.0001,
+    king_exposed_penalty: -0.006,
     safe_check_value: 0.1,
     unsafe_check_value: 0.03,
     king_control_value: 0.001,

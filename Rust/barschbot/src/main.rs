@@ -31,6 +31,8 @@ use crate::endgame_table::EndgameTable;
 use crate::perceptron::Perceptron;
 use crate::square::Square;
 
+use rayon::prelude::*;
+
 mod zoberist_hash;
 
 mod bitboard_helper;
@@ -254,8 +256,8 @@ fn find_best_bot(table: &EndgameTable) {
 
     let mut improv = standard.clone();
 
-    let start_val = 0.000;
-    let end_val = -0.01;
+    let start_val = 0.01;
+    let end_val = 0.2;
     let steps = 5;
 
     let mut max_score = 0;
@@ -263,9 +265,9 @@ fn find_best_bot(table: &EndgameTable) {
     for i in 0..(steps + 1) {
         let val = start_val + (end_val - start_val) * (i as f32 / steps as f32);
         println!("Trying value: {}", val);
-        improv.eval_factors.king_exposed_penalty = val;
+        improv.eval_factors.safe_check_value = val;
 
-        let (wins, losses, draws) = play_all_fens(table, &improv, &standard);
+        let (wins, losses, draws) = play_all_fens_parallel(table, &improv, &standard);
 
         print_confidence(wins, losses, draws);
 
@@ -353,6 +355,105 @@ fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, 
 
     return (a_wins, b_wins, draws);
 }
+
+fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, i32, i32) {
+    let mut fens = Vec::new();
+    
+    let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\Fens.txt").unwrap();
+    //let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\chessData.csv").unwrap();
+    
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+
+    for line in contents.lines() {
+        fens.push(line.split(",").collect::<Vec<_>>()[0]);
+    }
+
+    const THREAD_COUNT: usize = 4;
+
+    if fens.len() % THREAD_COUNT != 0 {
+        panic!("Fen count not divisible by thread count");
+    }
+
+    let mut threads = Vec::new();
+    let fens_per_thread = fens.len() / THREAD_COUNT;
+    for t in 0..THREAD_COUNT {
+        let mut list = Vec::new();
+        for i in (t * fens_per_thread)..((t + 1) * fens_per_thread) {
+            list.push(i);
+        }
+
+        threads.push(list);
+    }
+
+    for list in &threads {
+        println!("Thread: {} -> {}", list[0], list[list.len() - 1]);
+    }
+
+    
+    threads.par_iter_mut().for_each(|list| {
+        let mut a_wins = 0;
+        let mut b_wins = 0;
+        let mut draws = 0;
+
+        let mut count = 0;
+        for i in 0..list.len() {
+            let fen = fens[list[i]];
+            let mut res = play_bot_game(fen, table, &a, &b);       
+            
+            let white_start = Game::from_fen(fen).is_whites_turn();
+            
+            if res.is_draw() {
+                draws += 1;
+            }
+            else {
+                if white_start == (res == GameState::WhiteCheckmate) {
+                    b_wins += 1;
+                }
+                else {
+                    a_wins += 1;
+                }
+            }
+            
+            res = play_bot_game(fen, table, &b, &a);       
+            
+            if res.is_draw() {
+                draws += 1;
+            }
+            else {
+                if white_start != (res == GameState::WhiteCheckmate) {
+                    b_wins += 1;
+                }
+                else {
+                    a_wins += 1;
+                }
+            }
+
+            count += 1;
+            if count % 50 == 0 {
+                println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
+            }
+        }
+        
+        println!("Chunk done Sum: W {} L {} D {}", a_wins, b_wins, draws);
+        list[0] = a_wins;
+        list[1] = b_wins;
+        list[2] = draws;
+    });
+
+    let mut sum_a = 0;
+    let mut sum_b = 0;
+    let mut sum_d = 0;
+
+    for list in threads {
+        sum_a += list[0];
+        sum_b += list[1];
+        sum_d += list[2];
+    }
+
+    return (sum_a as i32, sum_b as i32, sum_d as i32);
+}
+
 
 fn check_all_perft_board() {
     println!("Checking all fens");
