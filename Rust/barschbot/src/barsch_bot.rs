@@ -1,13 +1,38 @@
 use std::{time::Instant, cmp, collections::HashMap};
 
 use arrayvec::ArrayVec;
+use rand::seq::SliceRandom;
 
-use crate::{game::{Game, GameState}, chess_move::{ChessMove, self, NULL_MOVE}, piece_type::PieceType, bit_board::BitBoard, 
-    evaluation::*, endgame_table::{self, EndgameTable, UNDEFINED}, bb_settings::{self, BBSettings}};
+use crate::{game::{Game, GameState}, chess_move::{ChessMove, self, NULL_MOVE}, piece_type::PieceType, bit_board::{BitBoard, self}, 
+    evaluation::*, endgame_table::{self, EndgameTable, UNDEFINED, BoardState}, bb_settings::{self, BBSettings}, opening_book::OpeningBook};
 
 const MAX_VALUE: f32 =  f32::INFINITY;
 
-pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> ChessMove{
+pub struct Stats {
+    pub nodes: u64,
+    pub qs: u64,
+    pub best_move_hits: u64,
+    pub not_best_move_hits: u64
+}
+
+impl Stats {
+    pub fn new() -> Stats {
+        return Stats { nodes: 0, qs: 0, best_move_hits: 0, not_best_move_hits: 0 };
+    }
+    pub fn print(&self) {
+        println!("Nodes: {} Qs: {} BMFM ratio: {}", self.nodes, self.qs, self.best_move_hits as f32 / (self.not_best_move_hits + self.best_move_hits) as f32);
+    }
+}
+
+pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings, book: &OpeningBook) -> ChessMove{
+    println!("Looking for best move");
+    let om = book.get_move(game.get_board().get_zoberist_hash());
+
+    if om != NULL_MOVE {
+        println!("Book move");
+        return om;
+    }
+
     if bb_settings.end_game_table && game.get_board().get_all_piece_count() <= table.max_piece_count as u32 {
         //println!("Endgame move");
         return end_game_move(game, table);
@@ -98,7 +123,7 @@ pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (f32
 }
 
 pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> (ChessMove, f32) {
-    const PRINT: bool = false;
+    const PRINT: bool = true;
     
     let mut map = HashMap::new();
     
@@ -109,8 +134,10 @@ pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &
 
     let mut start = Instant::now();
     let mut pair: (ChessMove, f32, GameState) = (NULL_MOVE, 0.0, GameState::Undecided);
+    let mut stats = Stats::new();
+
     for md in 1..(bb_settings.max_depth + 1) {
-        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table, &mut map, bb_settings);
+        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table, &mut map, bb_settings, &mut stats);
         //pair = negation_max(game, i);
 
         let duration = start.elapsed();
@@ -133,6 +160,10 @@ pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &
         if pair.2.is_checkmate() {
             break;
         }
+    }
+
+    if PRINT {
+        stats.print();
     }
 
     return (pair.0, pair.1);
@@ -174,8 +205,49 @@ fn move_sorter(list: &mut ArrayVec<ChessMove, 200>, prev_best: ChessMove) {
     });
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings) -> (ChessMove, f32, GameState) {        
+pub fn better_move_sorter(list: &mut ArrayVec<ChessMove, 200>, board: &BitBoard, prev_best: ChessMove) {
+    const PIECE_VALUES: [i32; 7] = [10, 28, 32, 50, 90, 100, 0];
+
+    //board.print();            
+    list.sort_by_cached_key(|cm| {
+        if *cm == prev_best {
+            return i32::MIN;
+        }
+        
+        let mut sum = 0;
+
+        if cm.is_direct_capture() {
+            sum += PIECE_VALUES[PieceType::from_cpt(cm.capture_piece_type) as usize] 
+            - PIECE_VALUES[PieceType::from_cpt(cm.move_piece_type) as usize] 
+            + 200;
+        }
+
+        if cm.is_en_passant() {
+            sum += 200;
+        }
+
+        sum *= 1000;
+
+        sum += PIECE_VALUES[PieceType::from_cpt(cm.promotion_piece_type) as usize];
+
+        sum *= 1000;
+
+        sum += board.get_piece_captures_at(cm.move_piece_type, cm.target_square).iter()
+            .map(|x| PIECE_VALUES[*x as usize]).sum::<i32>();
+
+        //println!("Move: {} sum: {}", cm.get_board_name(&board), sum);
+
+        return -sum;
+    });
+
+    //board.print_local_moves(&list);
+}
+
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings, stats: &mut Stats) -> (ChessMove, f32, GameState) {        
+    stats.nodes += 1;
+    
     if depth_left == 0 {
+        stats.qs += 1;
         return quiescence(game, alpha, beta, settings.max_quiescence_depth, table, map, settings);
     }
 
@@ -207,13 +279,21 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_lef
 
     let mut list = game.get_legal_moves();
 
-    move_sorter(&mut list, hist_move);
+    //move_sorter(&mut list, hist_move);
+    better_move_sorter(&mut list, &game.get_board(), hist_move);
+
+    let fm = list[0];
+    let mut sm = NULL_MOVE;
+
+    if list.len() > 1 {
+        sm = list[1];
+    }
 
     for m in  list {
         
         game.make_move(m);
         
-        let (line, mut value, gs) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map, settings);
+        let (line, mut value, gs) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map, settings, stats);
         
         game.undo_move();
         
@@ -232,6 +312,13 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_lef
             best_gs = gs;
         }
     }    
+
+    if best_move == fm || best_move == sm {
+        stats.best_move_hits += 1;
+    }
+    else {
+        stats.not_best_move_hits += 1;
+    }
 
     if !best_move.is_null_move() {
         if map.contains_key(&hash) {

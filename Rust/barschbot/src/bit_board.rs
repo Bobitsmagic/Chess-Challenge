@@ -454,6 +454,59 @@ impl BitBoard {
         };
     }
 
+    pub fn get_piece_captures_at(&self, colored_piece_type: ColoredPieceType, square: Square) -> ArrayVec<PieceType, 10> {
+        let opponent_mask = if colored_piece_type.is_white() { self.black_pieces } else { self.white_pieces };
+        
+        
+        let mut res = 0_u64;
+        match PieceType::from_cpt(colored_piece_type) {
+            PieceType::Pawn => {
+                if colored_piece_type.is_white() {
+                    res = bitboard_helper::WHITE_PAWN_ATTACKS[square as usize] & opponent_mask;
+                }
+                else {
+                    res = bitboard_helper::BLACK_PAWN_ATTACKS[square as usize] & opponent_mask;
+                }
+            },
+            PieceType::Knight => {
+                res = bitboard_helper::KNIGHT_ATTACKS[square as usize] & opponent_mask;
+            },
+            PieceType::King => {
+                res = bitboard_helper::KING_ATTACKS[square as usize] & opponent_mask;
+            },
+            _ => ()
+        }
+
+
+        let all_mask = self.white_pieces | self.black_pieces;
+        if colored_piece_type.is_diagonal_slider() {
+            for index in bitboard_helper::iterate_set_bits(bitboard_helper::DIAGONAL_ATTACKS[square as usize] & opponent_mask) {
+                let in_between = bitboard_helper::get_in_between(square, Square::from_u8(index as u8));
+
+                if in_between & all_mask == 0 {
+                    res |= 1_u64 << index;
+                }
+            }
+        }
+
+        if colored_piece_type.is_orthogonal_slider() {
+            for index in bitboard_helper::iterate_set_bits(bitboard_helper::ORTHOGONAL_ATTACKS[square as usize] & opponent_mask) {
+                let in_between = bitboard_helper::get_in_between(square, Square::from_u8(index as u8));
+
+                if in_between & all_mask == 0 {
+                    res |= 1_u64 << index;
+                }
+            }
+        }
+
+        let mut list = ArrayVec::new();
+        for index in bitboard_helper::iterate_set_bits(res) {
+            list.push(PieceType::from_cpt(self.type_field[index as usize]));
+        }
+
+        return list;
+    }
+
     fn square_is_attacked_by_ignore_king(&self, white: bool, target_square: Square) -> bool {
         let color_mask = if white { self.white_pieces } else { self.black_pieces };
 

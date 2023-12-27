@@ -26,8 +26,10 @@ use num_bigint::BigInt;
 use num_traits::{Zero, One, ToPrimitive};
 
 use crate::bitboard_helper::{RANK_MASKS, FILE_MASKS};
+use crate::colored_piece_type::ColoredPieceType;
 use crate::dataset::EvalBoards;
 use crate::endgame_table::EndgameTable;
+use crate::opening_book::OpeningBook;
 use crate::perceptron::Perceptron;
 use crate::square::Square;
 
@@ -52,6 +54,7 @@ mod visualizer;
 mod evaluation;
 mod endgame_table;
 mod bb_settings;
+mod opening_book;
 
 use std::env;
 fn main() {
@@ -59,6 +62,7 @@ fn main() {
 
     //check_all_perft_board();
     let table = EndgameTable::load(3);
+    let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
     //let mut app = App::new();
     //play_game_player();
     //play_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", &table);
@@ -70,13 +74,19 @@ fn main() {
 
     //panic!();
 
-    find_best_bot(&table);
-    
+    //find_best_bot(&table);
 
+    play_game_player();
+
+    let mut game = Game::get_start_position();
+    game.make_move(ChessMove::new_move(Square::E2, Square::E4, ColoredPieceType::WhitePawn, ColoredPieceType::None));
+
+    barsch_bot::get_best_move(&mut game, &table, &bb_settings::STANDARD_SETTINGS, &book);
+    
     println!("Done");
 }
 
-fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings, flip: bool) -> GameState {
+fn show_bot_game(start_position: &str, table: &EndgameTable, book: &OpeningBook, app: &mut App, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings, flip: bool) -> GameState {
     println!("Playing fen: {}", start_position);
     let mut game = Game::from_fen(start_position);
 
@@ -94,7 +104,7 @@ fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_s
         first_player = !first_player;
 
 
-        let cm = barsch_bot::get_best_move(&mut game, table, set);
+        let cm = barsch_bot::get_best_move(&mut game, table, set, book);
 
         game.make_move(cm);
 
@@ -115,7 +125,7 @@ fn show_bot_game(start_position: &str, table: &EndgameTable, app: &mut App, bb_s
     return game.get_game_state();
 }
 
-fn play_bot_game(start_position: &str, table: &EndgameTable, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings) -> GameState {
+fn play_bot_game(start_position: &str, table: &EndgameTable, book: &OpeningBook, bb_settings_a: &BBSettings , bb_settings_b: &BBSettings) -> GameState {
 
     let mut game = Game::from_fen(start_position);
     let mut first_player = true;
@@ -123,7 +133,7 @@ fn play_bot_game(start_position: &str, table: &EndgameTable, bb_settings_a: &BBS
     while game.get_game_state() == GameState::Undecided {
         let set = if first_player { bb_settings_a } else { bb_settings_b };
 
-        let cm = barsch_bot::get_best_move(&mut game, table, set);
+        let cm = barsch_bot::get_best_move(&mut game, table, set, book);
         first_player = !first_player;
 
         game.make_move(cm);
@@ -139,8 +149,10 @@ fn play_bot_game(start_position: &str, table: &EndgameTable, bb_settings_a: &BBS
 fn play_game_player() {
     let mut app = App::new();
     let mut game = Game::get_start_position(); 
-    //game = Game::from_fen("r1bqkbnr/pppp1ppp/8/3Pn3/8/8/PPP1QPPP/RNB1KBNR b KQkq - 2 5");
+    //game = Game::from_fen("7r/2pkB1pp/p3R3/8/3P4/8/P4PPP/1r2N1K1 w - - 0 1");
+    let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
 
+    
     let flip = false;
     for i in 0..10 {
         app.render_board(&game.get_board().type_field, chess_move::NULL_MOVE, flip);    
@@ -152,7 +164,8 @@ fn play_game_player() {
 
     while game.get_game_state() == GameState::Undecided {
         //let cm = barsch_bot::get_best_move(&mut game);
-
+        barsch_bot::better_move_sorter(&mut game.get_legal_moves(), &game.get_board(), chess_move::NULL_MOVE);
+        
         let pair = app.read_move();
 
         if game.get_game_state() == GameState::Undecided {
@@ -171,7 +184,9 @@ fn play_game_player() {
             }
         }
 
-        let cm = barsch_bot::get_best_move(&mut game, &table, &bb_settings::STANDARD_SETTINGS);      
+        game.get_board().print();
+
+        let cm = barsch_bot::get_best_move(&mut game, &table, &bb_settings::STANDARD_SETTINGS, &book);      
         
         cm.print();
         println!(" is best move");
@@ -181,6 +196,7 @@ fn play_game_player() {
             app.render_board(&game.get_board().type_field, cm, flip);
         }    
 
+        
 
         let ten_millis = time::Duration::from_millis(0);
         thread::sleep(ten_millis);
@@ -251,13 +267,13 @@ fn print_confidence(wins: i32, losses: i32, draws: i32) {
 
 fn find_best_bot(table: &EndgameTable) {
     
-    let standard = BBSettings { max_depth: 2, max_quiescence_depth: 2, end_game_table: true, 
+    let standard = BBSettings { max_depth: 3, max_quiescence_depth: 2, end_game_table: true, 
         eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
 
     let mut improv = standard.clone();
 
-    let start_val = 0.01;
-    let end_val = 0.2;
+    let start_val = -0.01;
+    let end_val = -0.2;
     let steps = 5;
 
     let mut max_score = 0;
@@ -265,7 +281,7 @@ fn find_best_bot(table: &EndgameTable) {
     for i in 0..(steps + 1) {
         let val = start_val + (end_val - start_val) * (i as f32 / steps as f32);
         println!("Trying value: {}", val);
-        improv.eval_factors.safe_check_value = val;
+        improv.eval_factors.king_control_value = val;
 
         let (wins, losses, draws) = play_all_fens_parallel(table, &improv, &standard);
 
@@ -285,6 +301,7 @@ fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, 
     
     let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\Fens.txt").unwrap();
     //let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\chessData.csv").unwrap();
+    let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
     
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
@@ -295,8 +312,8 @@ fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, 
 
     //println!("[{}]", fens[0]);
 
-    const SHOW: bool = false;    
-    //let mut app = App::new();
+    const SHOW: bool = true;    
+    let mut app = App::new();
 
     let mut a_wins = 0;
     let mut b_wins = 0;
@@ -308,10 +325,10 @@ fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, 
 
         let mut res = GameState::Undecided;
         if SHOW {
-            //res = show_bot_game(fen, table, &mut app, &a, &b, false);
+            res = show_bot_game(fen, table, &book, &mut app, &a, &b, false);
         }
         else {
-            res = play_bot_game(fen, table, &a, &b);       
+            res = play_bot_game(fen, table, &book, &a, &b);       
         }
         
         let white_start = Game::from_fen(fen).is_whites_turn();
@@ -329,10 +346,10 @@ fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, 
         }
 
         if SHOW {
-            //res = show_bot_game(fen, table, &mut app, &b, &a, true);
+            res = show_bot_game(fen, table, &book, &mut app, &b, &a, true);
         }
         else {
-            res = play_bot_game(fen, table, &b, &a);       
+            res = play_bot_game(fen, table, &book,&b, &a);       
         }
 
         if res.is_draw() {
@@ -361,7 +378,7 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
     
     let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\Fens.txt").unwrap();
     //let mut file = fs::File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\chessData.csv").unwrap();
-    
+    let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
 
@@ -369,7 +386,7 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
         fens.push(line.split(",").collect::<Vec<_>>()[0]);
     }
 
-    const THREAD_COUNT: usize = 4;
+    const THREAD_COUNT: usize = 5;
 
     if fens.len() % THREAD_COUNT != 0 {
         panic!("Fen count not divisible by thread count");
@@ -399,7 +416,7 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
         let mut count = 0;
         for i in 0..list.len() {
             let fen = fens[list[i]];
-            let mut res = play_bot_game(fen, table, &a, &b);       
+            let mut res = play_bot_game(fen, table, &book, &a, &b);       
             
             let white_start = Game::from_fen(fen).is_whites_turn();
             
@@ -415,7 +432,7 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
                 }
             }
             
-            res = play_bot_game(fen, table, &b, &a);       
+            res = play_bot_game(fen, table, &book, &b, &a);       
             
             if res.is_draw() {
                 draws += 1;

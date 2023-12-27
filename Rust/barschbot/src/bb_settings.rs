@@ -8,7 +8,7 @@ pub struct BBSettings {
     pub eval_factors: EvalFactors
 }
 
-pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 4, max_quiescence_depth: 4, end_game_table: false, eval_factors: STANDARD_EVAL_FACTORS };
+pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 7, max_quiescence_depth: 4, end_game_table: true, eval_factors: STANDARD_EVAL_FACTORS };
 
 #[derive(Clone)]
 pub struct EvalFactors {
@@ -46,8 +46,8 @@ pub struct EvalFactors {
 
 pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
     piece_value: [1.0, 2.8, 3.2, 5.0, 11.0],
-    safe_mobility: [0.0, 0.08, 0.07, 0.05, 0.02, 0.0],
-    unsafe_mobility: [0.0, 0.03, 0.02, 0.01, 0.001, 0.0],
+    safe_mobility: [0.01, 0.08, 0.07, 0.05, 0.005, 0.0],
+    unsafe_mobility: [0.001, 0.03, 0.02, 0.01, 0.001, 0.0],
     
     square_control: 0.01,
     late_factor_range: 0.01,
@@ -58,9 +58,9 @@ pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
     isolated_pawn_penalty: -0.15,
 
     king_exposed_penalty: -0.006,
-    safe_check_value: 0.1,
-    unsafe_check_value: 0.03,
-    king_control_value: 0.001,
+    safe_check_value: 0.2,
+    unsafe_check_value: 0.086,
+    king_control_value: -0.162,
 };
 
 pub const MATERIAL_EVAL_FACTORS: EvalFactors = EvalFactors {
@@ -118,6 +118,8 @@ impl EvalFactors {
         }
 
         sum *= late_factor;
+
+        sum += self.square_control * attributes.sq_control_dif as f32;
 
         for i in 0..6 {
             sum += self.safe_mobility[i] * attributes.safe_mobility_dif[i] as f32;

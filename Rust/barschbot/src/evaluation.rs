@@ -12,6 +12,7 @@ pub struct EvalAttributes {
     pub unsafe_mobility_dif: [i32; 6],
 
     pub material_sum: i32,
+    pub sq_control_dif: i32,
 
     pub pawn_push_dif: [i32; 6], 
     pub passed_pawn_dif: i32, 
@@ -203,19 +204,17 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
     }
 
 
-    //let mut controlled_sq = 0;
-    //for i in 0..64 {
-    //    bitboard_helper::set_bit(&mut controlled_sq, Square::from_u8(i), 
-    //        static_exchange_evaluation[i as usize] > 0);
-    //}
-    //bitboard_helper::print_bitboard(controlled_sq);
-    //let mut controlled_sq = 0;
-    //for i in 0..64 {
-    //    bitboard_helper::set_bit(&mut controlled_sq, Square::from_u8(i), 
-    //        static_exchange_evaluation[i as usize] < 0);
-    //}
-    //bitboard_helper::print_bitboard(controlled_sq);
+    let mut white_controlled_sq = 0;
+    let mut black_controlled_sq = 0;
+    for i in 0..64 {
+        bitboard_helper::set_bit(&mut white_controlled_sq, Square::from_u8(i), 
+            static_exchange_evaluation[i as usize] > 50);
 
+        bitboard_helper::set_bit(&mut black_controlled_sq, Square::from_u8(i), 
+            static_exchange_evaluation[i as usize] < -50);
+    }
+
+    let mut sq_control_count = white_controlled_sq.count_ones() as i32 - black_controlled_sq.count_ones() as i32;
 
     let mut safe_mobility_count = [0; 6];
     let mut unsafe_mobility_count = [0; 6];
@@ -339,6 +338,7 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
         unsafe_mobility_dif: unsafe_mobility_count,
 
         material_sum: material_sum,
+        sq_control_dif: sq_control_count,
 
         pawn_push_dif: pawn_ranks,
         passed_pawn_dif: passed_pawns,
