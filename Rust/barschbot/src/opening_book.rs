@@ -26,8 +26,8 @@ impl OpeningBook {
 
             let m = list.iter().filter(|m| m.get_board_name(&board) == parts[1]).collect::<Vec<_>>()[0];
 
-            board.print();
-            println!("Book move {}", m.get_board_name(&board));
+            //board.print();
+            //println!("Book move {}", m.get_board_name(&board));
 
             moves.insert(hash, *m);
         }

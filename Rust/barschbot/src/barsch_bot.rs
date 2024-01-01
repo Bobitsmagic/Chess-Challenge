@@ -25,11 +25,11 @@ impl Stats {
 }
 
 pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings, book: &OpeningBook) -> ChessMove{
-    println!("Looking for best move");
+    //println!("Looking for best move");
     let om = book.get_move(game.get_board().get_zoberist_hash());
 
     if om != NULL_MOVE {
-        println!("Book move");
+        //println!("Book move");
         return om;
     }
 
@@ -123,7 +123,7 @@ pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (f32
 }
 
 pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> (ChessMove, f32) {
-    const PRINT: bool = true;
+    const PRINT: bool = false;
     
     let mut map = HashMap::new();
     

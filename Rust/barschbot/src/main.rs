@@ -78,11 +78,13 @@ fn main() {
 
     play_game_player();
 
-    let mut game = Game::get_start_position();
-    game.make_move(ChessMove::new_move(Square::E2, Square::E4, ColoredPieceType::WhitePawn, ColoredPieceType::None));
-
-    barsch_bot::get_best_move(&mut game, &table, &bb_settings::STANDARD_SETTINGS, &book);
+    //let mut game = Game::get_start_position();
+    //game.make_move(ChessMove::new_move(Square::E2, Square::E4, ColoredPieceType::WhitePawn, ColoredPieceType::None));
+//
+    //barsch_bot::get_best_move(&mut game, &table, &bb_settings::STANDARD_SETTINGS, &book);
     
+
+
     println!("Done");
 }
 
@@ -196,8 +198,6 @@ fn play_game_player() {
             app.render_board(&game.get_board().type_field, cm, flip);
         }    
 
-        
-
         let ten_millis = time::Duration::from_millis(0);
         thread::sleep(ten_millis);
     }
@@ -209,7 +209,7 @@ fn play_game_player() {
     println!("{}", game.to_string());
 }
 
-fn print_confidence(wins: i32, losses: i32, draws: i32) {
+fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
     let sum = wins + losses + draws;
     let score = wins * 2 + draws;
     let n = sum * 2;
@@ -248,6 +248,8 @@ fn print_confidence(wins: i32, losses: i32, draws: i32) {
 
     println!("Likelyhood of superiority: {:.3}", (1.0 - prob) * 100.0);
 
+    return (1.0 - prob);
+
     fn binom_pdf(n: i32, k: i32) -> BigInt {
 
         let mut numerator = BigInt::one();
@@ -272,20 +274,23 @@ fn find_best_bot(table: &EndgameTable) {
 
     let mut improv = standard.clone();
 
-    let start_val = -0.01;
-    let end_val = -0.2;
+    let start_val = 0.001;
+    let end_val = 0.1;
     let steps = 5;
 
     let mut max_score = 0;
     let mut best_val = 0.0;
+
+    let mut results = Vec::new();
+
     for i in 0..(steps + 1) {
         let val = start_val + (end_val - start_val) * (i as f32 / steps as f32);
         println!("Trying value: {}", val);
-        improv.eval_factors.king_control_value = val;
+        improv.eval_factors.knight_outpost_value = val;
 
         let (wins, losses, draws) = play_all_fens_parallel(table, &improv, &standard);
 
-        print_confidence(wins, losses, draws);
+        results.push((val, print_confidence(wins, losses, draws)));
 
         if wins * 2 + draws > max_score {
             println!("New best value: {}", val);
@@ -294,6 +299,15 @@ fn find_best_bot(table: &EndgameTable) {
             max_score = wins * 2 + draws;
         }
     }
+
+    println!("Final scores: ");
+    results.sort_unstable_by(|a, b| { return b.1.partial_cmp(&a.1).unwrap() });
+
+    for r in results {
+        println!("Value: {} -> {}", r.0, r.1);
+    }
+    
+
 }
 
 fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, i32, i32) {

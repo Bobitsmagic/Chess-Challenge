@@ -8,7 +8,7 @@ pub struct BBSettings {
     pub eval_factors: EvalFactors
 }
 
-pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 7, max_quiescence_depth: 4, end_game_table: true, eval_factors: STANDARD_EVAL_FACTORS };
+pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 2, max_quiescence_depth: 2, end_game_table: true, eval_factors: STANDARD_EVAL_FACTORS };
 
 #[derive(Clone)]
 pub struct EvalFactors {
@@ -35,6 +35,8 @@ pub struct EvalFactors {
     pub doubled_pawn_penalty: f32,
     pub isolated_pawn_penalty: f32,
 
+    pub knight_outpost_value: f32,
+
     //[TODO] Matrix [passed?][doubled?][isolated?][rank] (64)
 
     //King
@@ -57,6 +59,8 @@ pub const STANDARD_EVAL_FACTORS: EvalFactors = EvalFactors {
     doubled_pawn_penalty: -0.15,
     isolated_pawn_penalty: -0.15,
 
+    knight_outpost_value: 0.0,
+
     king_exposed_penalty: -0.006,
     safe_check_value: 0.2,
     unsafe_check_value: 0.086,
@@ -76,6 +80,8 @@ pub const MATERIAL_EVAL_FACTORS: EvalFactors = EvalFactors {
     passed_pawn_value: 0.0,
     doubled_pawn_penalty: -0.0,
     isolated_pawn_penalty: -0.0,
+
+    knight_outpost_value:  0.0,
 
     king_exposed_penalty: 0.0,
     safe_check_value: 0.0,
@@ -97,6 +103,8 @@ pub const RANDOM_MOVES: EvalFactors = EvalFactors {
     passed_pawn_value: 0.0,
     doubled_pawn_penalty: -0.0,
     isolated_pawn_penalty: -0.0,
+
+    knight_outpost_value:  0.0,
 
     king_exposed_penalty: 0.0,
     safe_check_value: 0.0,
@@ -134,6 +142,8 @@ impl EvalFactors {
         sum += self.doubled_pawn_penalty * attributes.doubled_pawn_dif as f32;
         sum += self.isolated_pawn_penalty * attributes.isolated_pawn_dif as f32;
         
+        sum += self.knight_outpost_value * attributes.knight_outpost_dif as f32;
+
         sum += self.king_exposed_penalty * attributes.king_qn_moves_dif as f32;
         sum += self.king_control_value * attributes.king_control_dif as f32;
         sum += self.safe_check_value * attributes.safe_check_dif as f32;

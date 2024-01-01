@@ -19,6 +19,8 @@ pub struct EvalAttributes {
     pub doubled_pawn_dif: i32, 
     pub isolated_pawn_dif: i32, 
 
+    pub knight_outpost_dif: i32,
+
     //Number of moves a Queen and Knight could do at the king pos
     pub king_qn_moves_dif: i32,
     //Number of controlled squares by the opponent the king can move to
@@ -314,7 +316,27 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
             }
         }
     }
-    
+
+    //Knight outposts
+    let mut knight_outposts = 0;
+    for i in bitboard_helper::iterate_set_bits(board.get_piece_bitboard(ColoredPieceType::WhiteKnight)) {
+        if bitboard_helper::NEIGHBOUR_FILES[(i % 8) as usize] 
+            & bitboard_helper::WHITE_PASSED_PAWN_MASK[i as usize] 
+            & board.get_piece_bitboard(ColoredPieceType::BlackPawn) == 0 {
+
+            knight_outposts += 1;
+        }
+    }
+
+    for i in bitboard_helper::iterate_set_bits(board.get_piece_bitboard(ColoredPieceType::BlackKnight)) {
+        if bitboard_helper::NEIGHBOUR_FILES[(i % 8) as usize] 
+            & bitboard_helper::BLACK_PASSED_PAWN_MASK[i as usize] 
+            & board.get_piece_bitboard(ColoredPieceType::WhitePawn) == 0 {
+
+            knight_outposts -= 1;
+        }
+    }
+
     let (passed_pawns, doubled_pawns, isolated_pawns, pawn_ranks) 
         = eval_pawn_structure(board);
     
@@ -344,6 +366,8 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
         passed_pawn_dif: passed_pawns,
         doubled_pawn_dif: doubled_pawns,
         isolated_pawn_dif: isolated_pawns,
+
+        knight_outpost_dif: knight_outposts,
 
         king_qn_moves_dif: king_qn_move_count,
         king_control_dif: king_control, 
@@ -489,6 +513,17 @@ mod tests {
         assert_eq!(doubled_pawns, 1);
         assert_eq!(isolated_pawns, 0);
         assert_eq!(pawn_ranks, [1, 3, -1, 0, 0, 0]);
+    }
+
+
+    #[test]
+    fn test_knight_outpost() {
+        //https://lichess.org/editor/k7/4p2p/p1Np4/NppN3N/1N6/8/8/K5N1_w_-_-_0_1?color=white
+        let board = BitBoard::from_fen("k7/4p2p/p1Np4/NppN3N/1N6/8/8/K5N1 w - - 0 1");
+
+        let attr = generate_eval_attributes(&board);
+
+        assert_eq!(attr.knight_outpost_dif, 3);
     }
 
     #[test]
