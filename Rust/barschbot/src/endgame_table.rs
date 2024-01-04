@@ -5,7 +5,7 @@ use std::{thread, time};
 
 use crate::{colored_piece_type::ColoredPieceType, piece_type::PieceType, bit_board::BitBoard, square::Square, constants, chess_move };
 
-const MAX_PIECE_COUNT: u8 = 3;
+const MAX_PIECE_COUNT: u8 = 4;
 
 pub fn generate_type_fields(max_piece_count: usize) -> Vec<Vec<[ColoredPieceType; 64]>> {
     assert!(max_piece_count >= 2);
@@ -757,7 +757,7 @@ impl EndgameTable {
 
             table_map.insert(hash, score);
 
-            if i % 1000000 == 0 {
+            if i % 10000000 == 0 {
                 println!("{} / {}", i, count);
             }
         }
@@ -768,7 +768,14 @@ impl EndgameTable {
     pub fn get_score(&self, board: &BitBoard) -> i8 {
         let sym = BitBoard::from_board_state(& board.get_board_state().get_lowest_symmetry());      
 
-        let mut s = self.table_map[&sym.get_zoberist_hash()];
+        let hash = sym.get_zoberist_hash();
+
+        if !self.table_map.contains_key(&hash) {
+            //board.print();
+
+            return 0;
+        }
+        let mut s = self.table_map[&hash];
 
         if s == UNDEFINED {
             println!("Undefined: ");

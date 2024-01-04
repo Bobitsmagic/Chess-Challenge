@@ -130,6 +130,26 @@ impl ColoredPieceType {
         return PieceType::from_cpt(*self).is_diagonal_slider();
     }
 
+
+    pub fn is_pawn(&self) -> bool {
+        return PieceType::from_cpt(*self) == PieceType::Pawn;
+    }
+    pub fn is_knight(&self) -> bool {
+        return PieceType::from_cpt(*self) == PieceType::Knight;
+    }
+    pub fn is_bishop(&self) -> bool {
+        return PieceType::from_cpt(*self) == PieceType::Bishop;
+    }
+    pub fn is_rook(&self) -> bool {
+        return PieceType::from_cpt(*self) == PieceType::Rook;
+    }
+    pub fn is_queen(&self) -> bool {
+        return PieceType::from_cpt(*self) == PieceType::Queen;
+    }
+    pub fn is_king(&self) -> bool {
+        return PieceType::from_cpt(*self) == PieceType::King;
+    }
+
     pub fn get_char(&self) -> &char {
         return &PIECE_CHAR[*self as usize];
     }

@@ -1,5 +1,5 @@
 use core::panic;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 use crate::{game::{Game, GameState}, colored_piece_type::ColoredPieceType, piece_type::PieceType, bitboard_helper, endgame_table::EndgameTable, square::{self, Square}, zoberist_hash, bb_settings::EvalFactors, bit_board::BitBoard, constants};
 
@@ -101,6 +101,8 @@ impl EvalAttributes {
         list.push(self.doubled_pawn_dif as f32);
         list.push(self.isolated_pawn_dif as f32);
 
+        list.push(self.knight_outpost_dif as f32);
+
         list.push(self.king_qn_moves_dif as f32);
         list.push(self.king_control_dif as f32);
         list.push(self.safe_check_dif as f32);
@@ -187,7 +189,7 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
     let mut static_exchange_evaluation = [0; 64];
         
     //Compute controlled squares (SEE) and LVA
-    const PIECE_ATTACK_SCORE: [i32; 6] = [10000, 1000, 1000, 100, 10, 1];
+    const PIECE_ATTACK_SCORE: [i32; 7] = [10000, 1000, 1000, 100, 10, 1, 0];
     for m in &white_list {
         if m.is_attack() {
             least_valueable_attacker_white[m.target_square as usize] 
@@ -242,12 +244,18 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
     //Compute safe mobility
     for m in &white_list {
         let mpt = PieceType::from_cpt(m.move_piece_type);
+        let capture_pt = PieceType::from_cpt(board.get_piece_type(m.target_square));
 
-        //Either capturing a piece with >= value or no recapture with lower value piece and SEE >= 0
-        let is_safe = mpt <= PieceType::from_cpt(board.get_piece_type(m.target_square)) 
-            || mpt <= least_valueable_attacker_black[m.target_square as usize] 
-            && static_exchange_evaluation[m.target_square as usize] >= 0;
+        //if attacking opponent piece SEE can be increased
+        //if attacking move (not forward pawn move) SEE has to be lowerd
+        let see = static_exchange_evaluation[m.target_square as usize] 
+            + if m.is_defence() { 0 } else { PIECE_ATTACK_SCORE[capture_pt as usize] } 
+            - if m.is_attack() { PIECE_ATTACK_SCORE[mpt as usize] } else { 0 };
+
+        let is_safe = see >= 0;
         
+        //println!("{} is {}", m.get_board_name(board), if is_safe {"safe"} else {"unsafe"});
+
         if is_safe {
             safe_mobility_count[mpt as usize] += 1;
         }
@@ -281,10 +289,13 @@ pub fn generate_eval_attributes(board: &BitBoard) -> EvalAttributes {
 
     for m in &black_list {
         let mpt = PieceType::from_cpt(m.move_piece_type);
-        //Either capturing a piece with >= value or no recapture with lower value piece and SEE >= 0
-        let is_safe = mpt <= PieceType::from_cpt(board.get_piece_type(m.target_square)) 
-            || mpt <= least_valueable_attacker_white[m.target_square as usize] 
-            && static_exchange_evaluation[m.target_square as usize] <= 0;
+        let capture_pt = PieceType::from_cpt(board.get_piece_type(m.target_square));
+        
+        let see = static_exchange_evaluation[m.target_square as usize] 
+            - if m.is_defence() { 0 } else { PIECE_ATTACK_SCORE[capture_pt as usize] } 
+            + if m.is_attack() { PIECE_ATTACK_SCORE[mpt as usize] } else { 0 };
+
+        let is_safe = see <= 0;
         
         if is_safe {
             safe_mobility_count[mpt as usize] -= 1;
@@ -562,9 +573,19 @@ mod tests {
         //-1
         assert_eq!(attributes.king_control_dif, -1);
         //2n + 1b + 2r
-        assert_eq!(attributes.safe_check_dif, -5);
+        assert_eq!(attributes.safe_check_dif, -4);
         //0
-        assert_eq!(attributes.unsafe_check_dif, 0);
+        assert_eq!(attributes.unsafe_check_dif, -1);
+    }
+
+    #[test]
+    fn test_pawn_moblility() {
+        //https://lichess.org/editor/8/8/7r/P1PP2k1/6P1/8/5PP1/4K3_w_-_-_0_1?color=white
+        let board = BitBoard::from_fen("8/8/7r/P1PP2k1/6P1/8/5PP1/4K3 w - - 0 1");
+        let attributes = generate_eval_attributes(&board);
+
+        assert_eq!(attributes.safe_mobility_dif[0], 9);
+        assert_eq!(attributes.unsafe_mobility_dif[0], 8);
     }
     
 }

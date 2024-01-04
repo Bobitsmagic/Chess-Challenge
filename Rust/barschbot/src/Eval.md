@@ -1,2 +1,72 @@
-Eval matrix
-PieceType x single move kick? x endgame x 
+        PieceValueP -> 0.846
+        PieceValueN -> 2.447201
+        PieceValueB -> 3.3177702
+        PieceValueR -> 5
+        PieceValueQ -> 11
+        SafeMobilityP -> 0.009
+        SafeMobilityN -> 0.065528356
+        SafeMobilityB -> 0.07
+        SafeMobilityR -> 0.0583
+        SafeMobilityQ -> 0.005
+        SafeMobilityK -> 0.106
+        UnsafeMobilityP -> 0
+        UnsafeMobilityN -> 0.06
+        UnsafeMobilityB -> -0.02
+        UnsafeMobilityR -> -0.018799996
+        UnsafeMobilityQ -> -0.09
+        UnsafeMobilityK -> -0.074052
+        LateFactorRange -> 0.01
+        SquareControl -> 0.00841428
+        PawnRank2 -> -0.07502
+        PawnRank3 -> 0.049000002
+        PawnRank4 -> 0.065142
+        PawnRank5 -> 0.11
+        PawnRank6 -> 0.15
+        PawnRank7 -> 0.55
+        PassedPawn -> 0.237864
+        DoubledPawn -> -0.14946
+        IsolatedPawn -> -0.15
+        KnightOutpost -> 0.062
+        KingExposed -> -0.0066
+        KingControl -> -0.1458
+        SafeCheck -> 0.22359216
+        UnsafeCheck -> 0.0774
+
+
+        Settings:
+        PieceValueP -> 1
+        PieceValueN -> 2.52
+        PieceValueB -> 3.2
+        PieceValueR -> 5
+        PieceValueQ -> 11
+        SafeMobilityP -> 0.0196
+        SafeMobilityN -> 0.021200003
+        SafeMobilityB -> 0.021200003
+        SafeMobilityR -> 0.016464515
+        SafeMobilityQ -> 0.020000003
+        SafeMobilityK -> 0.018360004
+        UnsafeMobilityP -> -0.017999995
+        UnsafeMobilityN -> 0.019080004
+        UnsafeMobilityB -> 0.013431098
+        UnsafeMobilityR -> 0
+        UnsafeMobilityQ -> 0
+        UnsafeMobilityK -> 0.018000003
+        LateFactorRange -> 0.01
+        SquareControl -> 0
+        PawnRank2 -> 0
+        PawnRank3 -> 0
+        PawnRank4 -> -0.019999996
+        PawnRank5 -> 0.05640001
+        PawnRank6 -> 0.1
+        PawnRank7 -> 0.1
+        PassedPawn -> 0.121
+        DoubledPawn -> 0.05724001
+        IsolatedPawn -> -0.06534
+        KnightOutpost -> -0.021999996
+        KingExposed -> 0
+        KingControl -> -0.021999996
+        SafeCheck -> 0.058212012
+        UnsafeCheck -> 0.022000004
+
+[Fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"]
+d4 d5 c4 dxc4 Nc3 a6 Bf4 Nf6 e3 b5 Be2 Nc6 Nf3 e6 O-O h6 Ne5 Bb7 Nxc6 Bxc6 Bf3 Bxf3 Qxf3 Bd6 Qc6 Ke7 a4 Bxf4 exf4 b4 Ne2 c3 bxc3 a5 cxb4 axb4 Qc5 Qd6 Qxd6 Kxd6 Rb1 Nd5 Kf1 Ra7 Nc1 Ra8 Nd3 Rxa4 Rxa4 Rxa4 Ke2 Nc3 Kd2 Nxb1 Kc2 Nc3 Kb3 Kd5 Nxb4 Kxd4 Nc2 Kd3 Nb4 Kd2 Nc2 c5 Ne3 Kd3 Nc4 Rb4 Ka3 Kxc4 h4 Rb3

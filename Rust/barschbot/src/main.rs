@@ -25,6 +25,7 @@ use piston::window::WindowSettings;
 use num_bigint::BigInt;
 use num_traits::{Zero, One, ToPrimitive};
 
+use crate::bb_settings::FactorName;
 use crate::bitboard_helper::{RANK_MASKS, FILE_MASKS};
 use crate::colored_piece_type::ColoredPieceType;
 use crate::dataset::EvalBoards;
@@ -61,7 +62,7 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
     //check_all_perft_board();
-    let table = EndgameTable::load(3);
+    let table = EndgameTable::load(4);
     let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
     //let mut app = App::new();
     //play_game_player();
@@ -74,7 +75,9 @@ fn main() {
 
     //panic!();
 
-    //find_best_bot(&table);
+    //auto_tune(&table, bb_settings::STANDARD_SETTINGS);
+    //optimize_value(&table, FactorName::PieceValueB, &bb_settings::STANDARD_SETTINGS);
+    //test_eval_range(&table);
 
     play_game_player();
 
@@ -166,7 +169,7 @@ fn play_game_player() {
 
     while game.get_game_state() == GameState::Undecided {
         //let cm = barsch_bot::get_best_move(&mut game);
-        barsch_bot::better_move_sorter(&mut game.get_legal_moves(), &game.get_board(), chess_move::NULL_MOVE);
+        //barsch_bot::better_move_sorter(&mut game.get_legal_moves(), &game.get_board(), chess_move::NULL_MOVE);
         
         let pair = app.read_move();
 
@@ -214,9 +217,9 @@ fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
     let score = wins * 2 + draws;
     let n = sum * 2;
     
-    println!("Scored {} out of {}", score, sum * 2);
+    println!("\tScored {} out of {}", score, sum * 2);
 
-    println!("Approx winrate: {:.2} %", 100.0 * score as f64 / (sum * 2) as f64);
+    println!("\tApprox winrate: {:.2} %", 100.0 * score as f64 / (sum * 2) as f64);
 
     let mut pos_sum = BigInt::zero();
 
@@ -246,7 +249,7 @@ fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
 
     let prob = pos_sum.to_f64().unwrap() / denom.to_f64().unwrap();
 
-    println!("Likelyhood of superiority: {:.3}", (1.0 - prob) * 100.0);
+    println!("\tLikelyhood of superiority: {:.3}", (1.0 - prob) * 100.0);
 
     return (1.0 - prob);
 
@@ -267,33 +270,81 @@ fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
     }
 }
 
-fn find_best_bot(table: &EndgameTable) {
+fn auto_tune(table: &EndgameTable, mut start_settings: BBSettings) {
+    let mut it: usize = FactorName::SafeMobilityP as usize;
+    loop {
+        let f = bb_settings::ALL_NAMES[it % bb_settings::ALL_NAMES.len()];
+        let init = start_settings.eval_factors.get_value(f);
+        let better = optimize_value(table, f, &start_settings.clone());
+
+        start_settings.eval_factors.set_value(f, better);
+
+        println!("Changed {:?}: {} -> {}\n", f, init, better);
+
+        if init != better {
+            start_settings.eval_factors.print_all();
+        }
+
+        it += 1;
+    }
+}
+
+fn optimize_value(table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> f32 {
+    let mut best_settings = start_settings.clone();
+
+    //start_settings.eval_factors.print_all();
+    println!("Optimizing: {:?} initial value: {}", factor_name, best_settings.eval_factors.get_value(factor_name));
+    let mut it: i32 = 0;
+    loop {
+
+        println!("iteration: {}", it);
+        it += 1;
+
+        let (val, sup) = test_eval_range(table, factor_name, &best_settings);
+        
+        if sup < 0.60 {
+            break;
+        }
+
+        best_settings.eval_factors.set_value(factor_name, val);
+    } 
+
+    return best_settings.eval_factors.get_value(factor_name);
+}
+
+fn test_eval_range(table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> (f32, f64) {
     
-    let standard = BBSettings { max_depth: 3, max_quiescence_depth: 2, end_game_table: true, 
-        eval_factors: bb_settings::STANDARD_EVAL_FACTORS };
+    const STEP_COUNT: i32 = 5;
+    const RANGE_DIV: f32 = 0.1;
 
-    let mut improv = standard.clone();
+    let mut improv = start_settings.clone();
 
-    let start_val = 0.001;
-    let end_val = 0.1;
-    let steps = 5;
+    let init_value = start_settings.eval_factors.get_value(factor_name);
+    let mut start_val =  init_value - RANGE_DIV * init_value;
+    let mut end_val = init_value + RANGE_DIV * init_value;
+
+    if init_value.abs() < 0.00001 {
+        start_val = -RANGE_DIV;
+        end_val = RANGE_DIV;
+    }
 
     let mut max_score = 0;
     let mut best_val = 0.0;
 
     let mut results = Vec::new();
 
-    for i in 0..(steps + 1) {
-        let val = start_val + (end_val - start_val) * (i as f32 / steps as f32);
+    for i in 0..(STEP_COUNT + 1) {
+        let val = start_val + (end_val - start_val) * (i as f32 / STEP_COUNT as f32);
         println!("Trying value: {}", val);
-        improv.eval_factors.knight_outpost_value = val;
+        
+        improv.eval_factors.set_value(factor_name, val);
 
-        let (wins, losses, draws) = play_all_fens_parallel(table, &improv, &standard);
+        let (wins, losses, draws) = play_all_fens_parallel(table, &improv, &start_settings);
 
         results.push((val, print_confidence(wins, losses, draws)));
 
         if wins * 2 + draws > max_score {
-            println!("New best value: {}", val);
+            println!("\tNew best value: {}", val);
 
             best_val = val;
             max_score = wins * 2 + draws;
@@ -303,11 +354,11 @@ fn find_best_bot(table: &EndgameTable) {
     println!("Final scores: ");
     results.sort_unstable_by(|a, b| { return b.1.partial_cmp(&a.1).unwrap() });
 
-    for r in results {
+    for r in &results {
         println!("Value: {} -> {}", r.0, r.1);
     }
-    
 
+    return results[0];
 }
 
 fn play_all_fens(table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, i32, i32) {
@@ -400,7 +451,7 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
         fens.push(line.split(",").collect::<Vec<_>>()[0]);
     }
 
-    const THREAD_COUNT: usize = 5;
+    const THREAD_COUNT: usize = 10;
 
     if fens.len() % THREAD_COUNT != 0 {
         panic!("Fen count not divisible by thread count");
@@ -417,9 +468,9 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
         threads.push(list);
     }
 
-    for list in &threads {
-        println!("Thread: {} -> {}", list[0], list[list.len() - 1]);
-    }
+    //for list in &threads {
+    //    println!("Thread: {} -> {}", list[0], list[list.len() - 1]);
+    //}
 
     
     threads.par_iter_mut().for_each(|list| {
@@ -460,13 +511,13 @@ fn play_all_fens_parallel(table: &EndgameTable, a: &BBSettings, b: &BBSettings) 
                 }
             }
 
-            count += 1;
-            if count % 50 == 0 {
-                println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
-            }
+            //count += 1;
+            //if count % 50 == 0 {
+            //    println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
+            //}
         }
         
-        println!("Chunk done Sum: W {} L {} D {}", a_wins, b_wins, draws);
+        //println!("Chunk done Sum: W {} L {} D {}", a_wins, b_wins, draws);
         list[0] = a_wins;
         list[1] = b_wins;
         list[2] = draws;

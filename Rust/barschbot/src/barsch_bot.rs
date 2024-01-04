@@ -37,13 +37,7 @@ pub fn get_best_move(game: &mut Game, table: &EndgameTable, bb_settings: &BBSett
         //println!("Endgame move");
         return end_game_move(game, table);
     }
-
-    if bb_settings.eval_factors.piece_value[0] == 0.0 {
-        let list = game.get_legal_moves();
-
-        return list[game.get_board().get_zoberist_hash() as usize % list.len()];
-    }
-
+    
     return iterative_deepening(game, table, bb_settings).0; 
 }
 
@@ -123,7 +117,7 @@ pub fn get_relative_endgame_eval(board: &BitBoard, table: &EndgameTable) -> (f32
 }
 
 pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &BBSettings) -> (ChessMove, f32) {
-    const PRINT: bool = false;
+    const PRINT: bool = true;
     
     let mut map = HashMap::new();
     

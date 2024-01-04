@@ -44,6 +44,19 @@ impl ChessMove {
         (PieceType::from_cpt(self.move_piece_type) == PieceType::King && (self.start_square as u8).abs_diff(self.target_square as u8) == 2));
     }
 
+    pub fn is_defence(&self) -> bool {
+        if self.is_direct_capture() {
+            return self.move_piece_type.is_white() != self.capture_piece_type.is_white();
+        }
+
+        return false;
+    }
+
+    //EP are not valid rn !!!!!
+    pub fn is_valid(&self) -> bool {
+        return !self.is_defence() && !(self.is_attack() && self.move_piece_type.is_pawn() && self.capture_piece_type != ColoredPieceType::None);
+    }
+
     pub fn is_promotion(&self) -> bool {
         return self.promotion_piece_type != ColoredPieceType::None;
     }
