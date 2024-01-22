@@ -1,3 +1,7 @@
+use std::any::Any;
+use std::fmt::Pointer;
+use std::time::{Instant, Duration};
+
 use glutin_window;
 use graphics;
 use opengl_graphics::{self, GlyphCache};
@@ -15,8 +19,9 @@ use crate::colored_piece_type::ColoredPieceType;
 use crate::game::Game;
 use crate::square::Square;
 use crate::zoberist_hash;
+use graphics::draw_state::DrawState;
 
-pub struct App {
+pub struct Visualizer {
     opengl: OpenGL,
     window: PistonWindow,
     textures: Vec<G2dTexture>,
@@ -24,7 +29,7 @@ pub struct App {
 
 const SIDE_LENGTH: u32 = 600;
 
-impl App {
+impl Visualizer {
     pub fn new() -> Self {
         let opengl = OpenGL::V3_2;
         let mut window: PistonWindow =
@@ -60,9 +65,9 @@ impl App {
         }
 
 
-        
-        
-        return App { opengl, window, textures };
+        window.set_swap_buffers(true);
+                
+        return Visualizer { opengl, window, textures };
     }
     
     pub fn render_board(&mut self, type_field: &[ColoredPieceType; 64], lm: ChessMove, flip: bool) -> bool {
@@ -73,80 +78,98 @@ impl App {
         const LIGHT_MOVE_SQUARE: [f32; 4] = [205.0 / 255.0, 210.0 / 255.0, 106.0 / 255.0, 1.0];
         const DARK_MOVE_SQUARE: [f32; 4] = [170.0 / 255.0, 162.0 / 255.0, 58.0 / 255.0, 1.0];
         const FILE_NAMES: [&str; 8] = ["a", "b", "c", "d", "e", "f", "g", "h"];
-        
-        let assets = find_folder::Search::ParentsThenKids(3, 3)
-            .for_folder("textures").unwrap();
-        
-        //let mut glyph_cache = GlyphCache::new("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\textures\\FiraSans-Regular.ttf", (), TextureSettings::new()).unwrap();
+        const ANIMATION_TIME: f64 = 1.0;
 
         let side_length = self.window.size().width / 8.0;
         let square = rectangle::square(0.0, 0.0, side_length);
-        if let Some(e) = self.window.next()  {
 
-        self.window.draw_2d(&e, |c, g, _| {
-            clear(DARK_SQUARE, g);
-            
-            for x in 0..8 {
-                for y in 0..8 {
-                    let mut transform = c
+        let start = Instant::now();
+        let mut elapsed = start.elapsed().as_millis() as f64 / 1000.0;
+
+        let mut render_animation = |elapsed: f64| {
+            loop {
+                let e = self.window.next().unwrap();
+                
+                if e.render(|x| {}).is_none() {
+                    continue;
+                };
+                
+                
+                let start = Instant::now();
+                
+                self.window.draw_2d(&e, |c, g, _| {
+                clear(DARK_SQUARE, g);
+                
+                for x in 0..8 {
+                    for y in 0..8 {
+                        let sq = Square::from_u8(x + y * 8);
+
+                        let mut transform = c
                         .transform
-                        .trans(x as f64 * side_length, (7 - y)  as f64 * side_length);
-
-                    if flip {
-                        transform = c
-                        .transform
-                        .trans((7 - x) as f64 * side_length, y  as f64 * side_length);
-                    }
-
-                    if (x + y) % 2 == 1 {
-                        rectangle(LIGHT_SQUARE, square, transform, g);
-                    } 
-
-                    if Square::from_u8(x + y * 8) == lm.start_square || 
-                        Square::from_u8(x + y * 8) == lm.target_square {
+                            .trans(x as f64 * side_length, (7 - y)  as f64 * side_length);
+    
+                        if flip {
+                            transform = c
+                            .transform
+                            .trans((7 - x) as f64 * side_length, y  as f64 * side_length);
+                        }
+    
                         if (x + y) % 2 == 1 {
-                            rectangle(LIGHT_MOVE_SQUARE, square, transform, g);
-                        }
-                        else {
-                            rectangle(DARK_MOVE_SQUARE, square, transform, g);
-                        }
-                    } 
-
-                    let tp = type_field[(x + y * 8) as usize];
-                    if tp != ColoredPieceType::None {
+                            rectangle(LIGHT_SQUARE, square, transform, g);
+                        } 
+                        
+                        if sq == lm.start_square || 
+                            sq == lm.target_square {
+                                if (x + y) % 2 == 1 {
+                                    rectangle(LIGHT_MOVE_SQUARE, square, transform, g);
+                                }
+                                else {
+                                    rectangle(DARK_MOVE_SQUARE, square, transform, g);
+                            }
+                        } 
+    
+                        let tp = type_field[(x + y * 8) as usize];
+                        if tp != ColoredPieceType::None && sq != lm.target_square{
                             let texture = &self.textures[(tp as usize)];
                             image(texture, 
                                 transform.scale(side_length / texture.get_width() as f64, side_length /texture.get_height() as f64), 
                                 g);
-                        }   
+                            }   
+                        }
                     }
-                }
 
-                
-                //for i in 0..8 {
-                //    let transform = c.transform
-                //    .trans(i as f64 * side_length, 7 as f64 * side_length);
-                //    
-                //    text::Text::new_color([1.0, 1.0, 1.0, 1.0], 20)
-                //    .draw(
-                //        FILE_NAMES[i as usize],
-                //        &mut glyph_cache,
-                //        &c.draw_state,
-                //        transform,
-                //        g,
-                //    )
-                //    .unwrap();
-                //}
-            });
+                    if !lm.is_null_move() {
+                        let mx = lm.start_square.file() as f64 + 
+                            (lm.target_square.file() as f64 - lm.start_square.file() as f64) * elapsed / ANIMATION_TIME;
+                    
+                        let my = lm.start_square.rank() as f64 + 
+                            (lm.target_square.rank() as f64 - lm.start_square.rank() as f64) * elapsed / ANIMATION_TIME;
+    
+                        let transform = c
+                            .transform
+                            .trans(mx * side_length, (7.0 - my) as f64 * side_length);
+    
+                        let texture = &self.textures[(lm.move_piece_type as usize)];
+                        image(texture, 
+                            transform.scale(side_length / texture.get_width() as f64, side_length /texture.get_height() as f64), 
+                            g);
+                    }
+                });
 
+                break;  
+            }
 
+        };
+        
+        while elapsed < ANIMATION_TIME {
+            render_animation(elapsed - 0.3 * (elapsed * std::f64::consts::PI * 2.0).sin());
             
-
-            return true;    
+            elapsed = start.elapsed().as_millis() as f64 / 1000.0;
         }
 
-        return false;
-        
+        render_animation(ANIMATION_TIME);
+
+        return true;        
     }
 
     pub fn read_move(&mut self) -> (Square, Square) {
@@ -167,8 +190,6 @@ impl App {
                 location = pos;
             }
         }
-
-        
 
         let mut x = (location[0] / (SIDE_LENGTH as f64) * 8.0) as i32;
         let mut y = 7 - (location[1] / (SIDE_LENGTH as f64) * 8.0) as i32;

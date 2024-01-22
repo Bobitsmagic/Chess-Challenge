@@ -130,10 +130,12 @@ pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &
     let mut pair: (ChessMove, f32, GameState) = (NULL_MOVE, 0.0, GameState::Undecided);
     let mut stats = Stats::new();
 
-    for md in 1..(bb_settings.max_depth + 1) {
-        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, table, &mut map, bb_settings, &mut stats);
-        //pair = negation_max(game, i);
+    let mut md = 1 as u8;
 
+    while md <= bb_settings.max_depth || start.elapsed().as_millis() < (bb_settings.min_search_time as u128) {
+        pair = alpha_beta_nega_max(game, -MAX_VALUE, MAX_VALUE,  md, bb_settings.max_extensions, table, &mut map, bb_settings, &mut stats);
+        //pair = negation_max(game, i);
+    
         let duration = start.elapsed();
         
         if PRINT {
@@ -150,10 +152,11 @@ pub fn iterative_deepening(game: &mut Game, table: &EndgameTable, bb_settings: &
             
             println!(" Move: {}", pair.0.get_uci());
         }
-
+    
         if pair.2.is_checkmate() {
             break;
         }
+        md += 1;
     }
 
     if PRINT {
@@ -237,7 +240,7 @@ pub fn better_move_sorter(list: &mut ArrayVec<ChessMove, 200>, board: &BitBoard,
     //board.print_local_moves(&list);
 }
 
-pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings, stats: &mut Stats) -> (ChessMove, f32, GameState) {        
+pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_left: u8, extensions_left: u8, table: &EndgameTable, map: &mut HashMap<u64, (u8, ChessMove, f32, GameState)>, settings: &BBSettings, stats: &mut Stats) -> (ChessMove, f32, GameState) {        
     stats.nodes += 1;
     
     if depth_left == 0 {
@@ -281,13 +284,16 @@ pub fn alpha_beta_nega_max(game: &mut Game, mut alpha: f32, beta: f32, depth_lef
 
     if list.len() > 1 {
         sm = list[1];
-    }
+    }    
 
-    for m in  list {
+    for i in  0..list.len() {
         
+        let m = list[i];
         game.make_move(m);
         
-        let (line, mut value, gs) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - 1, table, map, settings, stats);
+        let sub = if list.len() < 3 && extensions_left > 0 { 0 } else { 1 };
+
+        let (line, mut value, gs) = alpha_beta_nega_max(game,  -beta, -alpha, depth_left - sub, extensions_left -  (1 - sub), table, map, settings, stats);
         
         game.undo_move();
         
