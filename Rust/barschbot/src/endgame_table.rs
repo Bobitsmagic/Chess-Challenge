@@ -3,7 +3,9 @@ use std::{collections::HashMap, fs::File, io::{Write, Read}};
 
 use std::{thread, time};
 
-use crate::{colored_piece_type::ColoredPieceType, piece_type::PieceType, bit_board::BitBoard, square::Square, constants, chess_move };
+use rayon::slice::ParallelSliceMut;
+
+use crate::{colored_piece_type::ColoredPieceType, piece_type::PieceType, bit_board::BitBoard, square::Square, constants, chess_move, compact_hashmap::CompactHashmap };
 
 const MAX_PIECE_COUNT: u8 = 4;
 
@@ -514,7 +516,7 @@ pub const WHITE_CHECKMATE: i8 = -127;
 pub const BLACK_CHECKMATE: i8 = 127;
 pub const DRAW: i8 = 0;
 pub struct EndgameTable {
-    table_map: HashMap<u64, i8>,
+    table_map: CompactHashmap,
     pub max_piece_count: u8
 }
 
@@ -697,7 +699,7 @@ impl EndgameTable {
             }
         }
         
-        return EndgameTable { table_map, max_piece_count: MAX_PIECE_COUNT };
+        return EndgameTable { table_map: CompactHashmap::from_hashmap(table_map), max_piece_count: MAX_PIECE_COUNT };
 
         fn wait() {
             let ten_millis = time::Duration::from_millis(1000);
@@ -708,18 +710,11 @@ impl EndgameTable {
     }
 
     pub fn store_data(&self) {
-        let mut file = File::create("table_base.bin").unwrap();
+        let mut file = File::create("sorted_table_base_".to_owned() + &self.max_piece_count.to_string().to_owned() + ".bin").unwrap();
         
         let mut buffer = Vec::with_capacity(self.table_map.len()); 
 
-        for pair in &self.table_map {
-            let bytes = pair.0.to_be_bytes();
-            for b in bytes {
-                buffer.push(b);
-            }
-            
-            buffer.push(pair.1.to_be_bytes()[0]);
-        }
+        self.table_map.store_bytes(&mut buffer);
         
         // Write a slice of bytes to the file
         file.write_all(&buffer).unwrap();
@@ -727,26 +722,29 @@ impl EndgameTable {
 
     pub fn load(mut max_piece_count: u8) -> Self {
         if max_piece_count < 3 {
-            return EndgameTable { table_map: HashMap::new(), max_piece_count: 0};
+            return EndgameTable { table_map: CompactHashmap::empty(), max_piece_count: 0};
         }
 
         if max_piece_count > 4 {
             panic!("I cant handle this anymore");
         }
 
+        let start = time::Instant::now();
 
-        let mut file = File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\table_base_".to_owned() + &max_piece_count.to_string().to_owned() + ".bin").unwrap();
+        let mut file = File::open("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\sorted_table_base_".to_owned() + &max_piece_count.to_string().to_owned() + ".bin").unwrap();
         // read the same file back into a Vec of bytes
         let mut buffer = Vec::<u8>::new();
         file.read_to_end(&mut buffer).unwrap();
 
+        println!("Loaded file in {} ms", start.elapsed().as_millis());
         let count = buffer.len() / 9;
 
         if buffer.len() % 9 != 0 {
             panic!("Kekeke");
         }
 
-        let mut table_map = HashMap::with_capacity(count);
+        
+        let mut data: Vec<(u64, i8)> = Vec::with_capacity(count);
         for i in 0..count {
             let start_index = i * 9;
             let mut bytes = [0_u8; 8];
@@ -755,12 +753,21 @@ impl EndgameTable {
             let hash = u64::from_be_bytes(bytes);
             let score = i8::from_be_bytes([buffer[start_index + 8]; 1]);
 
-            table_map.insert(hash, score);
+            data.push((hash, score));
+        }
+        println!("Finished loading data in {} ms", start.elapsed().as_millis());
 
-            if i % 10000000 == 0 {
-                println!("{} / {}", i, count);
+        for i in 1..data.len() {
+            if data[i - 1].0 >= data[i].0 {
+                panic!("Kekeke");
             }
         }
+
+        println!("Finished sorting data in {} ms", start.elapsed().as_millis());
+
+        let mut table_map = CompactHashmap::new(data);
+        
+        println!("Finished loading table in {} ms", start.elapsed().as_millis());
 
         return EndgameTable { table_map, max_piece_count };        
     }
@@ -770,12 +777,13 @@ impl EndgameTable {
 
         let hash = sym.get_zoberist_hash();
 
-        if !self.table_map.contains_key(&hash) {
+        if !self.table_map.contains_key(hash) {
             //board.print();
 
             return 0;
-        }
-        let mut s = self.table_map[&hash];
+        } 
+
+        let mut s = self.table_map.get(hash).unwrap();
 
         if s == UNDEFINED {
             println!("Undefined: ");

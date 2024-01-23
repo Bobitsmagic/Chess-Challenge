@@ -77,6 +77,9 @@ fn main() {
 
 fn load_files() -> (EndgameTable, OpeningBook) {
     let table = EndgameTable::load(4);
+
+    table.store_data();
+
     let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
 
     return (table, book);
