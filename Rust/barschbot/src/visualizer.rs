@@ -78,7 +78,7 @@ impl Visualizer {
         const LIGHT_MOVE_SQUARE: [f32; 4] = [205.0 / 255.0, 210.0 / 255.0, 106.0 / 255.0, 1.0];
         const DARK_MOVE_SQUARE: [f32; 4] = [170.0 / 255.0, 162.0 / 255.0, 58.0 / 255.0, 1.0];
         const FILE_NAMES: [&str; 8] = ["a", "b", "c", "d", "e", "f", "g", "h"];
-        const ANIMATION_TIME: f64 = 1.0;
+        const ANIMATION_TIME: f64 = 0.3;
 
         let side_length = self.window.size().width / 8.0;
         let square = rectangle::square(0.0, 0.0, side_length);
@@ -86,7 +86,7 @@ impl Visualizer {
         let start = Instant::now();
         let mut elapsed = start.elapsed().as_millis() as f64 / 1000.0;
 
-        let mut render_animation = |elapsed: f64| {
+        let mut render_animation = |ratio: f64| {
             loop {
                 let e = self.window.next().unwrap();
                 
@@ -140,10 +140,10 @@ impl Visualizer {
 
                     if !lm.is_null_move() {
                         let mx = lm.start_square.file() as f64 + 
-                            (lm.target_square.file() as f64 - lm.start_square.file() as f64) * elapsed / ANIMATION_TIME;
+                            (lm.target_square.file() as f64 - lm.start_square.file() as f64) * ratio;
                     
                         let my = lm.start_square.rank() as f64 + 
-                            (lm.target_square.rank() as f64 - lm.start_square.rank() as f64) * elapsed / ANIMATION_TIME;
+                            (lm.target_square.rank() as f64 - lm.start_square.rank() as f64) * ratio;
     
                         let transform = c
                             .transform
@@ -162,12 +162,14 @@ impl Visualizer {
         };
         
         while elapsed < ANIMATION_TIME {
-            render_animation(elapsed - 0.3 * (elapsed * std::f64::consts::PI * 2.0).sin());
+            let ratio = elapsed / ANIMATION_TIME;
+            render_animation(ratio - 0.1 * (ratio * std::f64::consts::PI * 2.0).sin());
             
             elapsed = start.elapsed().as_millis() as f64 / 1000.0;
         }
 
-        render_animation(ANIMATION_TIME);
+        render_animation(1.0);
+
 
         return true;        
     }

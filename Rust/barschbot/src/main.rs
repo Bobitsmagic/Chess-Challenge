@@ -60,22 +60,17 @@ mod bb_settings;
 mod opening_book;
 mod match_handler;
 mod auto_tuning;
+mod compact_hashmap;
 
 use std::env;
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
-    
-    let table = EndgameTable::load(3);
-    let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
+    let (table, book) = load_files();
 
     match_handler::play_game_player(&mut Game::get_start_position(), 
     true, 
         &bb_settings::STANDARD_SETTINGS, &table, &book);
-
-    //auto_tune(&table, bb_settings::BEST_SETTINGS);
-
-    //auto_tune(&table, bb_settings::STANDARD_SETTINGS);
 
     println!("Done");
 }
