@@ -102,20 +102,22 @@ pub fn play_game_player(game: &mut Game, mut human_turn: bool, settings: &BBSett
     
     while game.get_game_state() == GameState::Undecided {
         
-        let cm = if human_turn {
+        let mut cm = if human_turn {
             get_human_move(&mut app, game)
         }
         else {
             get_barschbot_move(game, table, settings, book)
         };
 
+        if cm == chess_move::NULL_MOVE {
+            cm = get_barschbot_move(game, table, settings, book);
+        }
+
         human_turn = !human_turn;
 
         game.make_move(cm);
 
         app.render_board(&game.get_board().type_field, cm, flip);
-        
-
     }
     
     println!("Result: {}", game.get_game_state().to_string());

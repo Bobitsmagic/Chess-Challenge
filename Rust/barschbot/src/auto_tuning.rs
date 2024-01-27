@@ -6,9 +6,9 @@ use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 use crate::{endgame_table::EndgameTable, bb_settings::{BBSettings, FactorName, self}, opening_book::OpeningBook, game::{GameState, Game}, match_handler::{play_bot_game, barsch_vs_sf, self}};
 
-const THREAD_COUNT: usize = 4;
+const THREAD_COUNT: usize = 14;
 
-fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
+pub fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
     let sum = wins + losses + draws;
     let score = wins * 2 + draws;
     let n = sum * 2;
@@ -67,7 +67,7 @@ fn print_confidence(wins: i32, losses: i32, draws: i32) -> f64 {
     }
 }
 
-fn auto_tune(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, mut start_settings: BBSettings) {
+fn auto_tune(fens: &&Vec<String>, book: &OpeningBook, table: &EndgameTable, mut start_settings: BBSettings) {
     let mut it: usize = FactorName::SafeMobilityP as usize;
     loop {
         let f = bb_settings::ALL_NAMES[it % bb_settings::ALL_NAMES.len()];
@@ -86,7 +86,7 @@ fn auto_tune(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, mut sta
     }
 }
 
-fn optimize_value_self_play(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> f32 {
+fn optimize_value_self_play(fens: &&Vec<String>, book: &OpeningBook, table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> f32 {
     let mut best_settings = start_settings.clone();
 
     //start_settings.eval_factors.print_all();
@@ -112,7 +112,7 @@ fn optimize_value_self_play(fens: &Vec<&str>, book: &OpeningBook, table: &Endgam
     return best_settings.eval_factors.get_value(factor_name);
 }
 
-fn test_eval_range_self_play(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> (f32, f64) {
+fn test_eval_range_self_play(fens: &&Vec<String>, book: &OpeningBook, table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> (f32, f64) {
     
     const STEP_COUNT: i32 = 5;
     const RANGE_DIV: f32 = 0.1;
@@ -161,7 +161,7 @@ fn test_eval_range_self_play(fens: &Vec<&str>, book: &OpeningBook, table: &Endga
     return results[0];
 }
 
-fn test_eval_range_stock_fish(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> (f32, f64) {
+fn test_eval_range_stock_fish(fens: &&Vec<String>, book: &OpeningBook, table: &EndgameTable, factor_name: bb_settings::FactorName, start_settings: &BBSettings) -> (f32, f64) {
     
     const STEP_COUNT: i32 = 4;
     const RANGE_DIV: f32 = 0.1;
@@ -210,7 +210,7 @@ fn test_eval_range_stock_fish(fens: &Vec<&str>, book: &OpeningBook, table: &Endg
     return results[0];
 }
 
-fn play_sf_parallel(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, settings: &BBSettings) -> (i32, i32, i32) {
+fn play_sf_parallel(fens: &&Vec<String>, book: &OpeningBook, table: &EndgameTable, settings: &BBSettings) -> (i32, i32, i32) {
     let mut threads = Vec::new();
     let fens_per_thread = fens.len() / THREAD_COUNT;
     let mut reisdue = fens.len() % THREAD_COUNT;
@@ -243,7 +243,7 @@ fn play_sf_parallel(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, 
 
         let mut count = 0;
         for i in 0..list.len() {
-            let fen = fens[list[i]];
+            let fen = &fens[list[i]];
             let white_start = Game::from_fen(&fen).is_whites_turn();
             
             let (res, dur_a, dur_b) = barsch_vs_sf(&mut Game::from_fen(&fen), &settings, book, table, true, &mut cmd);       
@@ -312,7 +312,7 @@ fn play_sf_parallel(fens: &Vec<&str>, book: &OpeningBook, table: &EndgameTable, 
     return (sum_a as i32, sum_b as i32, sum_d as i32);
 }
 
-fn compare_settings_parallel(fens: Vec<&str>, book: &OpeningBook, table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, i32, i32) {
+pub fn compare_settings_parallel(fens: &Vec<String>, book: &OpeningBook, table: &EndgameTable, a: &BBSettings, b: &BBSettings) -> (i32, i32, i32) {
     let mut threads = Vec::new();
     let fens_per_thread = fens.len() / THREAD_COUNT;
     let mut reisdue = fens.len() % THREAD_COUNT;
@@ -343,12 +343,12 @@ fn compare_settings_parallel(fens: Vec<&str>, book: &OpeningBook, table: &Endgam
 
         let mut count = 0;
         for i in 0..list.len() {
-            let fen = fens[list[i]];
+            let fen = &fens[list[i]];
             let white_start = Game::from_fen(&fen).is_whites_turn();
             
-            let (res, dur_a, dur_b) = play_bot_game(&mut Game::from_fen(&fen), table, book, &a, &b);       
-            duration_a += dur_a;
-            duration_b += dur_b;
+            let (res, dur_p1, dur_p2) = play_bot_game(&mut Game::from_fen(&fen), table, book, &a, &b);       
+            duration_a += dur_p1;
+            duration_b += dur_p2;
 
             if res.is_draw() {
                 draws += 1;
@@ -362,9 +362,9 @@ fn compare_settings_parallel(fens: Vec<&str>, book: &OpeningBook, table: &Endgam
                 }
             }
             
-            let (res, dur_a, dur_b) = play_bot_game(&mut Game::from_fen(&fen), table, book, &b, &a);       
-            duration_a += dur_a;
-            duration_b += dur_b;
+            let (res, dur_p1, dur_p2) = play_bot_game(&mut Game::from_fen(&fen), table, book, &b, &a);       
+            duration_a += dur_p2;
+            duration_b += dur_p1;
 
             if res.is_draw() {
                 draws += 1;
@@ -379,7 +379,7 @@ fn compare_settings_parallel(fens: Vec<&str>, book: &OpeningBook, table: &Endgam
             }
 
             count += 1;
-            if count % 10 == 0 {
+            if count % 5 == 0 {
                 println!("Sum: W {} L {} D {}", a_wins, b_wins, draws); 
             }
         }

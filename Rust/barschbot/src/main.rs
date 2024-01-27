@@ -15,6 +15,7 @@ use std::sync::atomic::AtomicU64;
 use std::time::{Instant, Duration};
 use std::{fs, io, thread, num};
 use std::str;
+use rand::Rng;
 
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{GlGraphics, OpenGL};
@@ -68,6 +69,21 @@ fn main() {
 
     let (table, book) = load_files();
 
+    /* 
+    let fens = load_fens("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\Fens.txt");
+    let a = bb_settings::STANDARD_SETTINGS;
+    let mut b = bb_settings::STANDARD_SETTINGS;
+
+    b.null_move_pruning = false;
+    //b.max_depth = 4;
+
+    let (w, d, l) = auto_tuning::compare_settings_parallel(&fens, &book, &table, &a, &b);
+    auto_tuning::print_confidence(w, d, l);
+    */
+    
+    play_all_puzzles(&book, &table);
+
+
     match_handler::play_game_player(&mut Game::get_start_position(), 
     true, 
         &bb_settings::STANDARD_SETTINGS, &table, &book);
@@ -77,8 +93,6 @@ fn main() {
 
 fn load_files() -> (EndgameTable, OpeningBook) {
     let table = EndgameTable::load(4);
-
-    table.store_data();
 
     let book = OpeningBook::load_from_file("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\barschbot\\book.txt");
 
@@ -93,9 +107,94 @@ fn load_fens(path: &str) -> Vec<String> {
         .map(|line| line.split(",").next().unwrap().to_string())
         .collect();
 
-    println!("Loading {} fens from: {}", ret.len(), path.split("\\").last().unwrap());
+    println!("Loaded {} fens from: {}", ret.len(), path.split("\\").last().unwrap());
 
     return ret;
+}
+
+fn load_lichess_puzzles() -> Vec<(String, Vec<ChessMove>)>{
+    //PuzzleId, FEN, Moves, Rating, RatingDeviation, Popularity, NbPlays, Themes, GameUrl, OpeningTags
+
+    let contents = fs::read_to_string("C:\\Users\\hmart\\Documents\\GitHub\\Chess-Challenge\\Rust\\data\\lichess_db_puzzle.csv").unwrap();
+    let ret: Vec<(String, Vec<ChessMove>)> = contents
+        .lines()
+        .skip(1)
+        .map(|line| {
+            let v: Vec<&str> = line.split(",").collect();
+            
+            return (v[1].to_string(), v[2].split(" ").map(|s| ChessMove::new_uci_move(s)).collect());
+        })
+        .collect();
+
+    return ret;
+}
+
+//Depth 8: 928 / 1000 (92.8%)
+//Depth 6: 887 / 1000 (88.7%)
+//Depth 5: 857 / 1000 (85.7%)
+//Depth 4: 823 / 1000 (82.3%)
+//Depth 3: 783 / 1000 (78.3%)
+
+fn play_all_puzzles(book: &OpeningBook, table: &EndgameTable ) {
+    let puzzles = load_lichess_puzzles();
+
+    println!("Loaded {} puzzles", puzzles.len());
+
+    let mut counter = 0 as u32;
+    let mut correct = 0 as u32;
+
+    let mut app = Visualizer::new();
+    let mut rng = rand::thread_rng();
+
+
+    for (fen, moves) in puzzles.iter().take(1000) {
+        
+        counter += 1;
+        
+        let mut game = Game::from_fen(&fen);
+        let mut all_correct = true;
+        
+        for i in 0..moves.len() {
+            
+            if i % 2 == 0 {
+                let fm = game.get_uci_move(moves[i].get_uci());
+                
+                game.make_move(fm);
+                
+                println!("Puzzle move: {}", fm.get_board_name(&game.get_board()));
+                
+                app.render_board(&game.get_board().type_field, fm, false);
+                
+                continue;
+            }
+            
+            //let ml = game.get_legal_moves();
+            
+            //let bmove = ml[rng.gen_range(0..ml.len())];
+            
+            
+            let bmove = barsch_bot::get_best_move(&mut game, table, &bb_settings::STANDARD_SETTINGS, book);
+            
+            println!("Expected: {} Barsch: {}", moves[i].get_uci(), bmove.get_uci());
+            
+            if bmove.get_uci() != moves[i].get_uci() {
+                all_correct = false;
+                
+                println!("Index: {}, Fen: {}", counter, fen);
+                break;
+            }
+
+            game.make_move(bmove);
+
+            app.render_board(&game.get_board().type_field, bmove, false);
+        }
+
+        if all_correct {
+            correct += 1;
+            //println!("Fen: {}", fen);
+        }
+        println!("{} / {} ({}%)", correct, counter, correct as f32 * 100.0 / counter as f32);
+    }
 }
 
 fn check_all_perft_board() {

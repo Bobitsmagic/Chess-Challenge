@@ -5,6 +5,9 @@ pub struct BBSettings {
     pub max_depth: u8,
     pub max_quiescence_depth: u8,
     pub end_game_table: bool,
+    pub null_move_pruning: bool,
+    pub null_move_pruning_margin: f32,
+    pub null_move_pruning_depth: u8,
     pub max_extensions: u8,
     pub eval_factors: EvalFactors,
     pub min_search_time: u64
@@ -53,8 +56,16 @@ pub const ALL_NAMES: [FactorName; 33] = [
     FactorName::UnsafeCheck,
 ];
 
-pub const STANDARD_SETTINGS: BBSettings = BBSettings { max_depth: 6, max_quiescence_depth: 3, end_game_table: true, max_extensions: 2, min_search_time: 3000, eval_factors: STANDARD_EVAL_FACTORS };
-pub const BEST_SETTINGS: BBSettings = BBSettings { max_depth: 3, max_quiescence_depth: 3, end_game_table: true, max_extensions: 2, min_search_time: 3000, eval_factors: SF_TUNED_VALUES };
+pub const STANDARD_SETTINGS: BBSettings = BBSettings { 
+    max_depth: 7, 
+    max_quiescence_depth: 3, 
+    max_extensions: 2, 
+    end_game_table: true, 
+    null_move_pruning: true,
+    null_move_pruning_margin: 0.3,
+    null_move_pruning_depth: 3, 
+    min_search_time: 0, 
+    eval_factors: STANDARD_EVAL_FACTORS };
 
 #[derive(Clone)]
 pub struct EvalFactors {

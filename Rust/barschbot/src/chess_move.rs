@@ -22,6 +22,12 @@ impl ChessMove {
         return ChessMove { start_square, target_square, move_piece_type, capture_piece_type: target_piece_type, promotion_piece_type }
     }
 
+    pub fn new_uci_move(uci: &str) -> ChessMove {
+        return ChessMove { start_square: Square::from_str(&uci[0..2]), target_square: Square::from_str(&uci[2..4]), 
+            move_piece_type: ColoredPieceType::None, capture_piece_type: ColoredPieceType::None,
+            promotion_piece_type: if uci.len() > 4 { ColoredPieceType::from_char(uci.chars().skip(4).next().unwrap()) } else  { ColoredPieceType::None } }
+    }
+
     pub fn is_castle(&self) -> bool {
         return PieceType::from_cpt(self.move_piece_type) == PieceType::King && (self.start_square as u8).abs_diff(self.target_square as u8) == 2 
     }

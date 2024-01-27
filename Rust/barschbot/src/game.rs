@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt};
 
 use arrayvec::ArrayVec;
 
-use crate::{chess_move::ChessMove, constants, bitboard_helper, bit_board::BitBoard, piece_type::PieceType};
+use crate::{chess_move::{self, ChessMove}, constants, bitboard_helper, bit_board::BitBoard, piece_type::PieceType};
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum GameState  {
@@ -103,11 +103,19 @@ impl  Game {
         return self.move_stack.last().unwrap().is_null_move();
     }
 
+    pub fn has_null_move(&self) -> bool {
+        return self.move_stack.iter().any(|m| m.is_null_move());
+    }
+
     pub fn make_move(&mut self, m: ChessMove) {
 
         assert!(self.get_game_state() == GameState::Undecided);
 
         if m.is_null_move() {
+            if self.board.in_check() {
+                println!("Null move in check: {}", self.to_string());
+            }
+            
             assert!(!self.board.in_check());
         }
         
@@ -162,6 +170,18 @@ impl  Game {
         }
 
         return self.cached_moves.clone();
+    }
+
+    pub fn get_uci_move(&mut self, uci: String) -> ChessMove {
+        let ml = self.get_legal_moves();
+
+        for cm in ml {
+            if cm.get_uci() == uci {
+                return cm;
+            }
+        }
+
+        return chess_move::NULL_MOVE;
     }
 
     pub fn fifty_move_counter(&self) -> u32 {

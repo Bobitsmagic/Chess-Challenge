@@ -454,6 +454,19 @@ impl BitBoard {
         };
     }
 
+    pub fn get_pawn_attacks (&self, white: bool) -> u64 {
+        let color_mask = if white { self.white_pieces } else { self.black_pieces };
+        
+        if white {
+            return bitboard_helper::capture_up_left(self.pawns & color_mask, u64::MAX) | 
+                bitboard_helper::capture_up_right(self.pawns & color_mask, u64::MAX); 
+        }
+        else {
+            return bitboard_helper::capture_down_left(self.pawns & color_mask, u64::MAX) | 
+                bitboard_helper::capture_down_right(self.pawns & color_mask, u64::MAX); 
+        }
+    }
+
     pub fn get_piece_captures_at(&self, colored_piece_type: ColoredPieceType, square: Square) -> ArrayVec<PieceType, 10> {
         let opponent_mask = if colored_piece_type.is_white() { self.black_pieces } else { self.white_pieces };
         
@@ -505,6 +518,48 @@ impl BitBoard {
         }
 
         return list;
+    }
+    
+    pub fn get_piece_moves_at(&self, piece_type: PieceType, square: Square) -> u8 {
+        let all_mask = self.black_pieces | self.white_pieces;
+        
+        
+        let mut res = 0_u64;
+        match piece_type {
+            PieceType::Pawn => {
+                return 3;
+            },
+            PieceType::Knight => {
+                return bitboard_helper::KNIGHT_ATTACKS[square as usize].count_ones() as u8;
+            },
+            PieceType::King => {
+                return bitboard_helper::KING_ATTACKS[square as usize].count_ones() as u8;
+            },
+            _ => ()
+        }
+
+        let all_mask = self.white_pieces | self.black_pieces;
+        if piece_type.is_diagonal_slider() {
+            for index in bitboard_helper::iterate_set_bits(bitboard_helper::DIAGONAL_ATTACKS[square as usize]) {
+                let in_between = bitboard_helper::get_in_between(square, Square::from_u8(index as u8));
+
+                if in_between & all_mask == 0 {
+                    res |= 1_u64 << index;
+                }
+            }
+        }
+
+        if piece_type.is_orthogonal_slider() {
+            for index in bitboard_helper::iterate_set_bits(bitboard_helper::ORTHOGONAL_ATTACKS[square as usize]) {
+                let in_between = bitboard_helper::get_in_between(square, Square::from_u8(index as u8));
+
+                if in_between & all_mask == 0 {
+                    res |= 1_u64 << index;
+                }
+            }
+        }
+
+        return res.count_ones() as u8;
     }
 
     fn square_is_attacked_by_ignore_king(&self, white: bool, target_square: Square) -> bool {

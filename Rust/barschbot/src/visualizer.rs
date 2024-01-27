@@ -27,7 +27,7 @@ pub struct Visualizer {
     textures: Vec<G2dTexture>,
 }
 
-const SIDE_LENGTH: u32 = 600;
+const SIDE_LENGTH: u32 = 900;
 
 impl Visualizer {
     pub fn new() -> Self {
@@ -78,7 +78,7 @@ impl Visualizer {
         const LIGHT_MOVE_SQUARE: [f32; 4] = [205.0 / 255.0, 210.0 / 255.0, 106.0 / 255.0, 1.0];
         const DARK_MOVE_SQUARE: [f32; 4] = [170.0 / 255.0, 162.0 / 255.0, 58.0 / 255.0, 1.0];
         const FILE_NAMES: [&str; 8] = ["a", "b", "c", "d", "e", "f", "g", "h"];
-        const ANIMATION_TIME: f64 = 0.3;
+        const ANIMATION_TIME: f64 = 0.1;
 
         let side_length = self.window.size().width / 8.0;
         let square = rectangle::square(0.0, 0.0, side_length);
@@ -168,6 +168,7 @@ impl Visualizer {
             elapsed = start.elapsed().as_millis() as f64 / 1000.0;
         }
 
+        render_animation(1.0);
         render_animation(1.0);
 
 
