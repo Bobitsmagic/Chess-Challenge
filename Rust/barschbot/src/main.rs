@@ -5,6 +5,7 @@ use chess_move::ChessMove;
 //use dataset::EvalBoards;
 use game::{Game, GameState};
 
+use graphics::color::PURPLE;
 use visualizer::Visualizer;
 //use game::Game;
 use core::{time, panic};
@@ -130,71 +131,89 @@ fn load_lichess_puzzles() -> Vec<(String, Vec<ChessMove>)>{
 }
 
 //Depth 8: 928 / 1000 (92.8%)
+//depth 7: 909 / 1000 (90.9)
 //Depth 6: 887 / 1000 (88.7%)
 //Depth 5: 857 / 1000 (85.7%)
 //Depth 4: 823 / 1000 (82.3%)
 //Depth 3: 783 / 1000 (78.3%)
 
+//Depth 2: 2579431 / 3678110 (70.12925%)
+//Depth 3: 2835433 / 3678110 (77.0894%)
+
 fn play_all_puzzles(book: &OpeningBook, table: &EndgameTable ) {
-    let puzzles = load_lichess_puzzles();
+    let mut puzzles = load_lichess_puzzles();
+
 
     println!("Loaded {} puzzles", puzzles.len());
 
-    let mut counter = 0 as u32;
-    let mut correct = 0 as u32;
-
-    let mut app = Visualizer::new();
+    //let mut app = Visualizer::new();
     let mut rng = rand::thread_rng();
+    const THREAD_COUNT: usize = 13;
+    let counter = puzzles.len();
 
-
-    for (fen, moves) in puzzles.iter().take(1000) {
-        
-        counter += 1;
-        
-        let mut game = Game::from_fen(&fen);
-        let mut all_correct = true;
-        
-        for i in 0..moves.len() {
+    puzzles.par_chunks_mut(counter / THREAD_COUNT).for_each(|slice| {
+        let mut correct = 0;
+        let mut counter = 0;
+        for (fen, moves) in slice {
+            counter += 1;
+            let mut game = Game::from_fen(&fen);
+            let mut all_correct = true;
             
-            if i % 2 == 0 {
-                let fm = game.get_uci_move(moves[i].get_uci());
+            for i in 0..moves.len() {
                 
-                game.make_move(fm);
-                
-                println!("Puzzle move: {}", fm.get_board_name(&game.get_board()));
-                
-                app.render_board(&game.get_board().type_field, fm, false);
-                
-                continue;
+                let cm = if i % 2 == 0 {
+                    let fm = game.get_uci_move(moves[i].get_uci());
+                    //println!("Puzzle move: {}", fm.get_board_name(&game.get_board()));
+                    
+                    fm
+                }
+                else {
+                    //let ml = game.get_legal_moves();
+                    //let bmove = ml[rng.gen_range(0..ml.len())];
+    
+                    let bmove = barsch_bot::get_best_move(&mut game, table, &bb_settings::STANDARD_SETTINGS, book);
+                    
+                    //println!("Expected: {} Barsch: {}", moves[i].get_uci(), bmove.get_uci());
+                    
+                    if bmove.get_uci() != moves[i].get_uci() {
+                        all_correct = false;
+                        
+                        //println!("Index: {}, Fen: {}", counter, fen);
+                        break;
+                    }
+    
+                    bmove
+                };         
+    
+                game.make_move(cm);
+    
+                //app.render_board(&game.get_board().type_field, cm, false);
             }
-            
-            //let ml = game.get_legal_moves();
-            
-            //let bmove = ml[rng.gen_range(0..ml.len())];
-            
-            
-            let bmove = barsch_bot::get_best_move(&mut game, table, &bb_settings::STANDARD_SETTINGS, book);
-            
-            println!("Expected: {} Barsch: {}", moves[i].get_uci(), bmove.get_uci());
-            
-            if bmove.get_uci() != moves[i].get_uci() {
-                all_correct = false;
-                
-                println!("Index: {}, Fen: {}", counter, fen);
-                break;
+    
+
+            *fen = all_correct.to_string();
+
+            if all_correct {
+                correct += 1;
             }
 
-            game.make_move(bmove);
-
-            app.render_board(&game.get_board().type_field, bmove, false);
+            if counter % 10000 == 0 {
+                println!("{}", counter);
+            }
         }
+    
 
-        if all_correct {
-            correct += 1;
-            //println!("Fen: {}", fen);
+    });
+
+
+    let mut cc = 0;
+    
+    for (fen, moves) in puzzles {
+        if fen.to_string() == true.to_string() {
+            cc += 1;
         }
-        println!("{} / {} ({}%)", correct, counter, correct as f32 * 100.0 / counter as f32);
     }
+    println!("{} / {} ({}%)", cc, counter, cc as f32 * 100.0 / counter as f32);
 }
 
 fn check_all_perft_board() {

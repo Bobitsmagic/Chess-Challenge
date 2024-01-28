@@ -57,7 +57,7 @@ pub const ALL_NAMES: [FactorName; 33] = [
 ];
 
 pub const STANDARD_SETTINGS: BBSettings = BBSettings { 
-    max_depth: 7, 
+    max_depth: 4, 
     max_quiescence_depth: 3, 
     max_extensions: 2, 
     end_game_table: true, 
